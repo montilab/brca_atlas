@@ -1,0 +1,669 @@
+---
+title: "Integration of Embeddings Visualized"
+author: "Andrew Chen"
+date: "`r format(Sys.Date(),'%e, %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged 
+    code_folding: hide
+    fig_width: 15 
+    fig_height: 10 
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(Seurat)
+library(scCustomize)
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+theme_set(theme_gray(base_size = 14))
+source("util.R")
+
+do_save <- TRUE
+```
+
+# Loading Data
+
+```{r, echo=FALSE}
+combined_seurat_filtered <- readRDS(file.path(PATH, "data/sc/combined_seurat_filtered_int.rds"))
+combined_immune_subset <- readRDS(file.path(PATH, "data/sc/combined_immune_subset_int.rds"))
+combined_epi_subset <- readRDS(file.path(PATH, "data/sc/combined_epi_subset_int.rds"))
+combined_strom_subset <- readRDS(file.path(PATH, "data/sc/combined_strom_subset_int.rds"))
+```
+
+# Combined {.tabset}
+
+## All Methods
+
+```{r, eval = FALSE}
+p1 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.harmony",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "Harmony", x = "UMAP 1", y = "UMAP 2") 
+p2 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.rpca",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "RPCA", x = "UMAP 1", y = "UMAP 2") 
+p3 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.mnn",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "MNN", x = "UMAP 1", y = "UMAP 2") 
+p4 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.scvi",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "scvi", x = "UMAP 1", y = "UMAP 2") 
+p5 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.scanvi_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "scanvi (ct)", x = "UMAP 1", y = "UMAP 2") 
+p6 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.scanvi_sub_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "scanvi (sub, ct)", x = "UMAP 1", y = "UMAP 2") 
+
+p1 + p2 + p3 + p4 + p5 + p6 + patchwork::plot_layout(guides = 'collect')
+
+ggsave(filename = file.path(PATH, "results/umaps/all_integration_batch.png"), width = 20, height = 10)
+```
+
+## Broad Markers
+```{r}
+p1 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.harmony",
+  group.by = "celltypist_broad",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "Harmony", x = "UMAP 1", y = "UMAP 2") 
+p2 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.harmony", "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p3 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.harmony", "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p4 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.harmony", "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.scvi",
+  group.by = "celltypist_broad",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "scvi", x = "UMAP 1", y = "UMAP 2") 
+p6 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scvi", "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scvi", "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p8 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scvi", "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p9 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.scanvi_ct",
+  group.by = "celltypist_broad",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "scanvi (ct)", x = "UMAP 1", y = "UMAP 2") 
+p10 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scanvi_ct", "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p11 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scanvi_ct", "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p12 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.scanvi_ct", "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p13 <- DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.rpca",
+  group.by = "celltypist_broad",
+  label = FALSE,
+  raster=FALSE
+) + labs(title = "RPCA", x = "UMAP 1", y = "UMAP 2") 
+p14 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.rpca", "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p15 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.rpca", "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p16 <- scCustomize::FeaturePlot_scCustom(combined_seurat_filtered, reduction = "umap.rpca", "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+combined_plot <- cowplot::plot_grid(p1,p2,p3,p4,
+                                    p5,p6,p7,p8,
+                                    p9,p10,p11,p12,
+                                    p13,p14,p15,p16,ncol = 4)
+ggsave(filename = file.path(PATH, "results/umaps/all_harmony_scanvi_scvi_broad_markers.png"), width = 30, height = 15)
+
+```
+
+
+# Compartments {.tabset}
+
+## Immune
+```{r}
+p15 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "No BEC", x = "UMAP 1", y = "UMAP 2")
+
+p16 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.harmony",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "Harmony", x = "UMAP 1", y = "UMAP 2")
+
+p17 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.rpca",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "RPCA", x = "UMAP 1", y = "UMAP 2")
+
+p18 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.mnn",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "mnn", x = "UMAP 1", y = "UMAP 2")
+
+p19 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.scvi",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "scvi", x = "UMAP 1", y = "UMAP 2")
+
+p20 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.scanvi_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_sr", x = "UMAP 1", y = "UMAP 2")
+
+p21 <- DimPlot_scCustom(
+  combined_immune_subset,
+  reduction = "umap.scanvi_sub_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_sub_sr", x = "UMAP 1", y = "UMAP 2")
+
+p15 + p16 + p17 + p18 + p19 + p20 + p21 + patchwork::plot_layout(guides = 'collect')
+
+ggsave(file.path(PATH, "results/umaps/immune_integrated_umap.png"), width = 14, height = 10)
+```
+
+### Sanity Checks
+```{r}
+combined_immune_subset$celltypist_shortened <- celltypist_short(combined_immune_subset$celltypist_pred)
+combined_immune_subset$author_shortened <- author_short(combined_immune_subset$celltype_new)
+
+p26 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Harmony", x = "UMAP1", y = "UMAP2")
+p27 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Harmony", x = "UMAP1", y = "UMAP2")
+p28 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "batch", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Harmony", x = "UMAP1", y = "UMAP2")
+p29 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "EPCAM",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p30 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "PTPRC",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p31 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Scanvi", x = "UMAP1", y = "UMAP2")
+p32 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Scanvi", x = "UMAP1", y = "UMAP2")
+p33 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "batch", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Scanvi", x = "UMAP1", y = "UMAP2")
+p34 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "EPCAM",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p35 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "PTPRC",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p36 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author scvi", x = "UMAP1", y = "UMAP2")
+p37 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist scvi", x = "UMAP1", y = "UMAP2")
+p38 <- DimPlot_scCustom(combined_immune_subset, 
+        group.by = "batch", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch scvi", x = "UMAP1", y = "UMAP2")
+p39 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "EPCAM",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p40 <- FeaturePlot_scCustom(combined_immune_subset, 
+        "PTPRC",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+combined <- cowplot::plot_grid(p26, p27, p28, p29, p30,
+                               p31, p32, p33, p34, p35,
+                               p36, p37, p38, p39, p40,
+                               ncol = 5, nrow = 3, rel_widths = c(1.5, 1.5, 1.5, 1, 1))
+
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/imm_harmony_scanvi.png"), height = 13, width = 24)
+```
+
+## Epithelial
+```{r}
+p15 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "No BEC", x = "UMAP 1", y = "UMAP 2")
+
+p16 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.harmony",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "Harmony", x = "UMAP 1", y = "UMAP 2")
+
+p17 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.rpca",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "RPCA", x = "UMAP 1", y = "UMAP 2")
+
+p18 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.mnn",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "mnn", x = "UMAP 1", y = "UMAP 2")
+
+p19 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.scvi",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "scvi", x = "UMAP 1", y = "UMAP 2")
+
+p20 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.scanvi_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_ct", x = "UMAP 1", y = "UMAP 2")
+
+p21 <- DimPlot_scCustom(
+  combined_epi_subset,
+  reduction = "umap.scanvi_sub_ct",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_sub_ct", x = "UMAP 1", y = "UMAP 2")
+
+p15 + p16 + p17 + p18 + p19 + p20 + p21 + patchwork::plot_layout(guides = 'collect')
+
+ggsave(file.path(PATH, "results/umaps/epi_integrated_umap.png"), width = 14, height = 10)
+```
+
+### Sanity Checks
+```{r}
+combined_epi_subset$celltypist_shortened <- celltypist_short(combined_epi_subset$celltypist_pred)
+combined_epi_subset$author_shortened <- author_short(combined_epi_subset$celltype_new)
+
+p26 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Harmony", x = "UMAP1", y = "UMAP2")
+p27 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Harmony", x = "UMAP1", y = "UMAP2")
+p28 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "batch", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Harmony", x = "UMAP1", y = "UMAP2")
+p29 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "EPCAM",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p30 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "PTPRC",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p31 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Scanvi", x = "UMAP1", y = "UMAP2")
+p32 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Scanvi", x = "UMAP1", y = "UMAP2")
+p33 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "batch", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Scanvi", x = "UMAP1", y = "UMAP2")
+p34 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "EPCAM",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p35 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "PTPRC",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p36 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author scvi", x = "UMAP1", y = "UMAP2")
+p37 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist scvi", x = "UMAP1", y = "UMAP2")
+p38 <- DimPlot_scCustom(combined_epi_subset, 
+        group.by = "batch", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch scvi", x = "UMAP1", y = "UMAP2")
+p39 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "EPCAM",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p40 <- FeaturePlot_scCustom(combined_epi_subset, 
+        "PTPRC",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+combined <- cowplot::plot_grid(p26, p27, p28, p29, p30,
+                               p31, p32, p33, p34, p35,
+                               p36, p37, p38, p39, p40,
+                               ncol = 5, nrow = 3, rel_widths = c(1.5, 1.5, 1.5, 1, 1))
+
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/epi_harmony_scanvi.png"), height = 13, width = 24)
+```
+
+## Stromal
+```{r}
+
+p15 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "No BEC", x = "UMAP 1", y = "UMAP 2")
+
+p16 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.harmony",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "Harmony", x = "UMAP 1", y = "UMAP 2")
+
+p17 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.rpca",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "RPCA", x = "UMAP 1", y = "UMAP 2")
+
+p18 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.mnn",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "mnn", x = "UMAP 1", y = "UMAP 2")
+
+p19 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.scvi",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "scvi", x = "UMAP 1", y = "UMAP 2")
+
+p20 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.scanvi_ct",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_ct", x = "UMAP 1", y = "UMAP 2")
+
+p21 <- DimPlot_scCustom(
+  combined_strom_subset,
+  reduction = "umap.scanvi_sub_ct",
+  group.by = "batch",
+  label = FALSE,
+  shuffle=TRUE
+) + labs(title = "scanvi_sub_ct", x = "UMAP 1", y = "UMAP 2")
+
+p15 + p16 + p17 + p18 + p19 + p20 + p21 + patchwork::plot_layout(guides = 'collect')
+
+ggsave(file.path(PATH, "results/umaps/strom_integrated_umap.png"), width = 14, height = 10)
+```
+
+### Sanity Checks
+```{r}
+combined_strom_subset$celltypist_shortened <- celltypist_short(combined_strom_subset$celltypist_pred)
+combined_strom_subset$author_shortened <- author_short(combined_strom_subset$celltype_new)
+
+p26 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Harmony", x = "UMAP1", y = "UMAP2")
+p27 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Harmony", x = "UMAP1", y = "UMAP2")
+p28 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "batch", 
+        reduction = "umap.harmony",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Harmony", x = "UMAP1", y = "UMAP2")
+p29 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "EPCAM",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p30 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "PTPRC",
+        reduction = "umap.harmony",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p31 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author Scanvi", x = "UMAP1", y = "UMAP2")
+p32 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist Scanvi", x = "UMAP1", y = "UMAP2")
+p33 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "batch", 
+        reduction = "umap.scanvi_ct",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch Scanvi", x = "UMAP1", y = "UMAP2")
+p34 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "EPCAM",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p35 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "PTPRC",
+        reduction = "umap.scanvi_ct",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+p36 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "author_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Author scvi", x = "UMAP1", y = "UMAP2")
+p37 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "celltypist_shortened", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "CellTypist scvi", x = "UMAP1", y = "UMAP2")
+p38 <- DimPlot_scCustom(combined_strom_subset, 
+        group.by = "batch", 
+        reduction = "umap.scvi",
+        label.size = 3,
+        repel = TRUE,
+        raster=FALSE,
+        label = TRUE) + labs(title = "Batch scvi", x = "UMAP1", y = "UMAP2")
+p39 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "EPCAM",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "EPCAM", x = "UMAP1", y = "UMAP2")
+p40 <- FeaturePlot_scCustom(combined_strom_subset, 
+        "PTPRC",
+        reduction = "umap.scvi",
+        raster=FALSE) + labs(title = "PTPRC", x = "UMAP1", y = "UMAP2")
+combined <- cowplot::plot_grid(p26, p27, p28, p29, p30,
+                               p31, p32, p33, p34, p35,
+                               p36, p37, p38, p39, p40,
+                               ncol = 5, nrow = 3, rel_widths = c(1.5, 1.5, 1.5, 1, 1))
+
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/strom_harmony_scanvi.png"), height = 13, width = 24)
+```
+
+### Sankey
+
+```{r}
+library(ggsankey)
+strom_metadata <- combined_strom_subset@meta.data
+strom_annot <- strom_metadata %>% dplyr::select(celltypist_pred, author_shortened)
+df <- strom_annot %>% make_long(author_shortened, celltypist_pred)
+```
+
+```{r}
+ggplot(df, aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node),
+               label = node)) +
+  geom_sankey(flow.alpha = 0.5, node.color = 1) +
+  geom_sankey_label(size = 3, color = 1, fill = "white") +
+  scale_fill_viridis_d() +
+  theme_sankey(base_size = 16) +
+  theme(legend.position = "none")
+```
+

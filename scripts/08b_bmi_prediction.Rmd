@@ -1,0 +1,456 @@
+---
+title: "BMI Prediction"
+author: "Andrew Chen"
+date:   "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r}
+library(GSVA)
+library(tidyverse)
+library(SingleCellExperiment)
+library(survminer)
+library(survival)
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+TCGAPATH <- file.path(Sys.getenv("CBM"),"TCGA-GDC/")
+METABRICPATH <- file.path(Sys.getenv("CBM"), "METABRIC/")
+do_save <- TRUE
+```
+
+# Loading Expression Data
+```{r}
+tcga_brca <- readRDS(file.path(TCGAPATH,"/RNAseq/esets_filtered/TCGA-BRCA_2020-03-22_DESeq2_log_filtered_eset.rds"))
+metabric <- readRDS(file.path(METABRICPATH, "ESets/metabric_GE_ESet.rds"))
+```
+
+```{r}
+table(pData(tcga_brca) %>% dplyr::select(c("sample_type","disease_type")))
+```
+
+```{r}
+table(metabric$SAMPLE_TYPE, metabric$CANCER_TYPE_DETAILED)
+```
+
+```{r}
+table(pData(tcga_brca)$subtype_selected)
+```
+
+```{r}
+metabric$Pam50_SUBTYPE %>% table
+```
+
+# GSVA
+```{r}
+## DE Signatures
+obese_sigs <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/obese_sigs.rds"))
+
+# GSVA with DE signatures
+if (do_save) {
+  tcga_obese_gsva <- gsva(tcga_brca,
+                   obese_sigs,
+                   mx.diff=TRUE,
+                   verbose=FALSE) 
+  tcga_obese_gsva$all_up <- exprs(tcga_obese_gsva)["all_up",]
+  tcga_obese_gsva$all_dn <- exprs(tcga_obese_gsva)["all_dn",]
+  tcga_obese_gsva$all_diff <- tcga_obese_gsva$all_up - tcga_obese_gsva$all_dn
+  tcga_obese_gsva$epithelial_up <- exprs(tcga_obese_gsva)["epi_up",]
+  tcga_obese_gsva$epithelial_dn <- exprs(tcga_obese_gsva)["epi_dn",]
+  tcga_obese_gsva$epithelial_diff <- tcga_obese_gsva$epithelial_up - tcga_obese_gsva$epithelial_dn
+  tcga_obese_gsva$immune_up <- exprs(tcga_obese_gsva)["imm_up",]
+  tcga_obese_gsva$immune_dn <- exprs(tcga_obese_gsva)["imm_dn",]
+  tcga_obese_gsva$immune_diff <- tcga_obese_gsva$immune_up - tcga_obese_gsva$immune_dn
+  tcga_obese_gsva$endo_up <- exprs(tcga_obese_gsva)["endo_up",]
+  tcga_obese_gsva$endo_dn <- exprs(tcga_obese_gsva)["endo_dn",]
+  tcga_obese_gsva$endo_diff <- tcga_obese_gsva$endo_up - tcga_obese_gsva$endo_dn
+  tcga_obese_gsva$mesen_up <- exprs(tcga_obese_gsva)["mesen_up",]
+  tcga_obese_gsva$mesen_dn <- exprs(tcga_obese_gsva)["mesen_dn",]
+  tcga_obese_gsva$mesen_diff <- tcga_obese_gsva$mesen_up - tcga_obese_gsva$mesen_dn
+  saveRDS(tcga_obese_gsva, file.path(PATH, "data/pseudobulk/tcga_gsva_obese.rds"))
+  
+  metabric_obese_gsva <- gsva(metabric,
+                   obese_sigs,
+                   mx.diff=TRUE,
+                   verbose=FALSE) 
+  metabric_obese_gsva$all_up <- exprs(metabric_obese_gsva)["all_up",]
+  metabric_obese_gsva$all_dn <- exprs(metabric_obese_gsva)["all_dn",]
+  metabric_obese_gsva$all_diff <- metabric_obese_gsva$all_up - metabric_obese_gsva$all_dn
+  metabric_obese_gsva$epithelial_up <- exprs(metabric_obese_gsva)["epi_up",]
+  metabric_obese_gsva$epithelial_dn <- exprs(metabric_obese_gsva)["epi_dn",]
+  metabric_obese_gsva$epithelial_diff <- metabric_obese_gsva$epithelial_up - metabric_obese_gsva$epithelial_dn
+  metabric_obese_gsva$immune_up <- exprs(metabric_obese_gsva)["imm_up",]
+  metabric_obese_gsva$immune_dn <- exprs(metabric_obese_gsva)["imm_dn",]
+  metabric_obese_gsva$immune_diff <- metabric_obese_gsva$immune_up - metabric_obese_gsva$immune_dn
+  metabric_obese_gsva$endo_up <- exprs(metabric_obese_gsva)["endo_up",]
+  metabric_obese_gsva$endo_dn <- exprs(metabric_obese_gsva)["endo_dn",]
+  metabric_obese_gsva$endo_diff <- metabric_obese_gsva$endo_up - metabric_obese_gsva$endo_dn
+  metabric_obese_gsva$mesen_up <- exprs(metabric_obese_gsva)["mesen_up",]
+  metabric_obese_gsva$mesen_dn <- exprs(metabric_obese_gsva)["mesen_dn",]
+  metabric_obese_gsva$mesen_diff <- metabric_obese_gsva$mesen_up - metabric_obese_gsva$mesen_dn
+  saveRDS(metabric_obese_gsva, file.path(PATH, "data/metabric_gsva_obese.rds"))
+  
+  sig_data <- read.csv(file.path(PATH, "data/hardy_ir_sig.csv"), header = TRUE)
+  ir_up <- sig_data$UP
+  ir_up <- ir_up[ir_up!=""]
+  ir_dn <- sig_data$DOWN
+  ir_sigs <- list(up = ir_up, dn = ir_dn)
+  ## Need to convert all HGNC aliases to latest first
+  ir_sigs <- lapply(ir_sigs, limma::alias2Symbol)
+  tcga_ir_gsva <- gsva(tcga_brca,
+                       ir_sigs,
+                       mx.diff=TRUE,
+                       verbose=FALSE) 
+  saveRDS(tcga_ir_gsva, file.path(PATH, "data/pseudobulk/tcga_ir_gsva.rds"))
+  metabric_ir_gsva <- gsva(metabric,
+                           ir_sigs,
+                           mx.diff=TRUE,
+                           verbose=FALSE) 
+  saveRDS(metabric_ir_gsva, file.path(PATH, "data/pseudobulk/metabric_ir_gsva.rds"))
+} else {
+  tcga_obese_gsva <- readRDS(file.path(PATH, "data/tcga_gsva_obese.rds"))
+  metabric_obese_gsva <- readRDS(file.path(PATH, "data/metabric_gsva_obese.rds"))
+  tcga_ir_gsva <- readRDS(file.path(PATH, "data/tcga_ir_gsva.rds"))
+  metabric_ir_gsva <- readRDS(file.path(PATH, "data/metabric_ir_gsva.rds"))
+}
+```
+
+```{r}
+tcga_gsva_data <- pData(tcga_obese_gsva) %>% as.data.frame %>%
+  dplyr::select(sample_id, file_id, all_up, all_dn, all_diff, epithelial_up, epithelial_dn, epithelial_diff, immune_up, immune_dn, immune_diff, endo_up, endo_dn, endo_diff, mesen_up, mesen_dn, mesen_diff)
+```
+
+```{r}
+metabric_gsva_data <- pData(metabric_obese_gsva) %>% as.data.frame %>%
+  dplyr::select(SAMPLE_ID, all_up, all_dn, all_diff, epithelial_up, epithelial_dn, epithelial_diff, immune_up, immune_dn, immune_diff, endo_up, endo_dn, endo_diff, mesen_up, mesen_dn, mesen_diff)
+```
+
+# Loading Model
+```{r}
+lr_model <- readRDS(file.path(PATH, "brca_atlas_validation/data/lr_model.rds"))
+```
+
+# Predicting on TCGA BRCA
+```{r}
+tcga_pred <- tcga_gsva_data %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
+
+lr_testing_pred <- 
+  predict(lr_model, tcga_pred) %>% 
+  bind_cols(predict(lr_model, tcga_pred, type = "prob"))
+
+tcga_gsva_data$ob_prob <- lr_testing_pred$.pred_1
+tcga_gsva_data$ob_quant <- with(tcga_gsva_data, cut(ob_prob ,quantile(ob_prob, na.rm=TRUE),include.lowest=TRUE,labels=FALSE))
+write.csv(tcga_gsva_data, file.path(PATH, "data/tcga_brca_gsva_bmi.csv"), row.names = FALSE)
+```
+
+## BMI Survival
+```{r}
+tcga_obese_gsva$ob_prob <- tcga_gsva_data$ob_prob
+tcga_obese_gsva$ob_quart <- tcga_gsva_data$ob_quant
+tcga_obese_gsva$ob_binary <- with(pData(tcga_obese_gsva), case_when(ob_prob <= 0.5 ~ "Not Obese",
+                                                          ob_prob > 0.5 ~ "Obese"))
+
+pData(tcga_obese_gsva) <- pData(tcga_obese_gsva) %>% 
+  mutate(time = if_else(!is.na(days_to_death),days_to_death,days_to_last_follow_up)) %>%
+  mutate(time_5 = if_else(as.numeric(time) < 1825.0, as.numeric(time) , 1826.0)) %>%
+  mutate(vital_status_1 = if_else(vital_status == "Alive", 1, 2)) %>%
+  mutate(vital_status_5 = if_else(vital_status == "Dead" & (time_5 > 1825.0), 1, vital_status_1))
+```
+
+```{r}
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(tcga_obese_gsva$time), tcga_obese_gsva$vital_status_1) ~ tcga_obese_gsva$ob_quart),
+  data = tcga_obese_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "TCGA"
+)
+
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(tcga_obese_gsva$time_5), tcga_obese_gsva$vital_status_5) ~ tcga_obese_gsva$ob_quart),
+  data = tcga_obese_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "TCGA w/ 5-year threshold"
+)
+```
+```{r}
+pData(tcga_obese_gsva)$subtype_selected <- relevel(factor(pData(tcga_obese_gsva)$subtype_selected), "BRCA.Normal")
+tcga.cox1 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob , data = pData(tcga_obese_gsva))
+tcga.cox2 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob + age_at_index, data = pData(tcga_obese_gsva))
+tcga.cox3 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob + subtype_selected + age_at_index, data = pData(tcga_obese_gsva))
+```
+
+```{r}
+summary(tcga.cox1)
+```
+```{r}
+summary(tcga.cox2)
+```
+```{r}
+summary(tcga.cox3)
+```
+
+## IR/IS Survival
+```{r}
+tcga_ir_threshold <- median(exprs(tcga_ir_gsva["up", ]) - exprs(tcga_ir_gsva["dn", ]))
+tcga_ir_gsva$ir_is <- t(exprs(tcga_ir_gsva["up", ]) - exprs(tcga_ir_gsva["dn", ]))
+tcga_ir_gsva$ir_is_stat <- with(tcga_ir_gsva, ifelse(tcga_ir_gsva$ir_is <= tcga_ir_threshold, "low", "high"))
+
+pData(tcga_ir_gsva) <- pData(tcga_ir_gsva) %>% 
+  mutate(time = if_else(!is.na(days_to_death),days_to_death,days_to_last_follow_up)) %>%
+  mutate(time_5 = if_else(as.numeric(time) < 1825.0, as.numeric(time) , 1826.0)) %>%
+  mutate(vital_status_1 = if_else(vital_status == "Alive", 1, 2)) %>%
+  mutate(vital_status_5 = if_else(vital_status == "Dead" & (time_5 > 1825.0), 1, vital_status_1))
+```
+
+```{r}
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(tcga_ir_gsva$time), tcga_ir_gsva$vital_status_1) ~ tcga_ir_gsva$ir_is_stat),
+  data = tcga_ir_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "TCGA"
+)
+
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(tcga_ir_gsva$time_5), tcga_ir_gsva$vital_status_5) ~ tcga_ir_gsva$ir_is_stat),
+  data = tcga_ir_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "TCGA w/ 5-year threshold"
+)
+```
+```{r}
+pData(tcga_ir_gsva)$subtype_selected <- relevel(factor(pData(tcga_ir_gsva)$subtype_selected), "BRCA.Normal")
+tcga.cox1 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is, data = pData(tcga_ir_gsva))
+tcga.cox2 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is + age_at_index, data = pData(tcga_ir_gsva))
+tcga.cox3 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is + subtype_selected + age_at_index, data = pData(tcga_ir_gsva))
+```
+
+```{r}
+summary(tcga.cox1)
+```
+```{r}
+summary(tcga.cox2)
+```
+```{r}
+summary(tcga.cox3)
+```
+
+
+# Predicting on Metabric
+```{r}
+metabric_pred <- metabric_gsva_data %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
+
+lr_testing_pred <- 
+  predict(lr_model, metabric_pred) %>% 
+  bind_cols(predict(lr_model, metabric_pred, type = "prob"))
+
+metabric_gsva_data$ob_prob <- lr_testing_pred$.pred_1
+metabric_gsva_data$ob_quant <- with(metabric_gsva_data, cut(ob_prob ,quantile(ob_prob, na.rm=TRUE),include.lowest=TRUE,labels=FALSE))
+write.csv(metabric_gsva_data, file.path(PATH, "data/metabric_brca_gsva_bmi.csv"), row.names = FALSE)
+```
+
+## Obesity Survival
+```{r}
+metabric_obese_gsva$ob_prob <- metabric_gsva_data$ob_prob
+metabric_obese_gsva$ob_quart <- metabric_gsva_data$ob_quant
+metabric_obese_gsva$ob_binary <- with(pData(metabric_obese_gsva), case_when(ob_prob <= 0.5 ~ "Not Obese",
+                                                          ob_prob > 0.5 ~ "Obese"))
+
+pData(metabric_obese_gsva) <- pData(metabric_obese_gsva) %>%
+  mutate(time = OS_MONTHS * 30.437) %>%
+  mutate(time_5 = if_else(as.numeric(time) < 1825.0, as.numeric(time), 1826.0)) %>%
+  mutate(vital_status_1 = if_else(OS_STATUS == "LIVING", 1, 2)) %>%
+  mutate(vital_status_5 = if_else(OS_STATUS == "DECEASED" & (time_5 > 1825.0), 1, vital_status_1))
+```
+
+```{r}
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(metabric_obese_gsva$time), metabric_obese_gsva$vital_status_1) ~ metabric_obese_gsva$ob_binary),
+  data = metabric_obese_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "METABRIC"
+)
+
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(metabric_obese_gsva$time_5), metabric_obese_gsva$vital_status_5) ~ metabric_obese_gsva$ob_binary),
+  data = metabric_obese_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "METABRIC w/ 5-year threshold"
+)
+```
+
+```{r}
+pData(metabric_obese_gsva)$Pam50_SUBTYPE <- relevel(factor(pData(metabric_obese_gsva)$Pam50_SUBTYPE), "Normal")
+metabric.cox1 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob , data = pData(metabric_obese_gsva))
+metabric.cox2 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob + AGE_AT_DIAGNOSIS, data = pData(metabric_obese_gsva))
+metabric.cox3 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ob_prob + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS, data = pData(metabric_obese_gsva))
+```
+
+```{r}
+summary(metabric.cox1)
+```
+```{r}
+summary(metabric.cox2)
+```
+```{r}
+summary(metabric.cox3)
+```
+
+## IR/IS Hardy Survival
+```{r}
+metabric_ir_threshold <- median(exprs(metabric_ir_gsva["up", ]) - exprs(metabric_ir_gsva["dn", ]))
+metabric_ir_gsva$ir_is <- t(exprs(metabric_ir_gsva["up", ]) - exprs(metabric_ir_gsva["dn", ]))
+metabric_ir_gsva$ir_is_stat <- with(metabric_ir_gsva, ifelse(metabric_ir_gsva$ir_is <= metabric_ir_threshold, "low", "high"))
+
+pData(metabric_ir_gsva) <- pData(metabric_ir_gsva) %>%
+  mutate(time = OS_MONTHS * 30.437) %>%
+  mutate(time_5 = if_else(as.numeric(time) < 1825.0, as.numeric(time), 1826.0)) %>%
+  mutate(vital_status_1 = if_else(OS_STATUS == "LIVING", 1, 2)) %>%
+  mutate(vital_status_5 = if_else(OS_STATUS == "DECEASED" & (time_5 > 1825.0), 1, vital_status_1))
+```
+
+```{r}
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(metabric_ir_gsva$time), metabric_ir_gsva$vital_status_1) ~ metabric_ir_gsva$ir_is_stat),
+  data = metabric_ir_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "METABRIC"
+)
+
+ggsurvplot(
+  fit = survfit(Surv(as.numeric(metabric_ir_gsva$time_5), metabric_ir_gsva$vital_status_5) ~ metabric_ir_gsva$ir_is_stat),
+  data = metabric_ir_gsva,
+  xlab = "Days",
+  ylab = "Overall survival probability",
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "METABRIC w/ 5-year threshold"
+)
+```
+
+```{r}
+pData(metabric_ir_gsva)$Pam50_SUBTYPE <- relevel(factor(pData(metabric_ir_gsva)$Pam50_SUBTYPE), "Normal")
+metabric.cox1 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is , data = pData(metabric_ir_gsva))
+metabric.cox2 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is + AGE_AT_DIAGNOSIS, data = pData(metabric_ir_gsva))
+metabric.cox3 <- coxph(Surv(as.numeric(time), vital_status_1) ~ ir_is + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS, data = pData(metabric_ir_gsva))
+```
+
+```{r}
+summary(metabric.cox1)
+```
+```{r}
+summary(metabric.cox2)
+```
+```{r}
+summary(metabric.cox3)
+```
+
+## Adjusted Survival Curve
+```{r}
+
+cox_fit <- coxph(Surv(as.numeric(time), vital_status_1) ~ strata(ir_is_stat) + AGE_AT_DIAGNOSIS, data = pData(metabric_ir_gsva))
+# Only method = 'conditional' works
+ggadjustedcurves(fit = cox_fit, 
+                 data = pData(metabric_ir_gsva),
+                 method = "conditional",
+                 variable = "ir_is_stat",
+                 xlab = "Days",
+                 ylab = "Overall survival probability",
+                 pval = TRUE,
+                 title = "Metabric Age-adjusted Cox Model")
+
+```
+
+```{r}
+library(adjustedCurves)
+#metabric_ir_gsva$ir_is_stat <- relevel(factor(metabric_ir_gsva$ir_is_stat), "low")
+metabric_ir_gsva$ir_is_stat <- factor(metabric_ir_gsva$ir_is_stat)
+metabric_ir_gsva$event <- with(pData(metabric_ir_gsva), if_else(vital_status_1 == 1, 0, 1))
+# outcome model
+cox_mod <- coxph(Surv(as.numeric(time), event) ~ AGE_AT_DIAGNOSIS + ir_is_stat,
+                 data=pData(metabric_ir_gsva), x=TRUE)
+
+# using g-computation with confidence intervals
+adjsurv <- adjustedsurv(data=pData(metabric_ir_gsva),
+                        variable="ir_is_stat",
+                        ev_time="time",
+                        event="event",
+                        method="direct",
+                        outcome_model=cox_mod,
+                        conf_int=TRUE,
+                        bootstrap=TRUE)
+plot(adjsurv, conf_int=TRUE, p_value = TRUE)
+#plot_curve_diff(adjsurv, conf_int = TRUE)
+```
+
+## IR/IS Muscoskeletal Survival
+```{r}
+tbls <- read_multi_xlsx$read_multi_xlsx(
+  file.path(PATH,"data","PMID33639916_12902_2021_687_MOESM1_ESM.xlsx")
+)
+```
+
+
+# Predicting on Atlas
+```{r}
+cancer_obese_gsva <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_gsva_obese.rds"))
+cancer_pred <- cancer_obese_gsva@colData %>% as.data.frame %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
+```
+
+```{r}
+lr_testing_pred <- 
+  predict(lr_model, cancer_pred) %>% 
+  bind_cols(predict(lr_model, cancer_pred, type = "prob"))
+```
+
+```{r}
+lr_testing_pred$.pred_1 %>% hist(main="Histogram of Obesity Probabilities")
+```
+
+```{r}
+# Storing in metadata object
+obesity_pred <- data.frame(donor = rownames(cancer_pred), obesity_prob = lr_testing_pred$.pred_1)
+obesity_pred$donor <- str_replace_all(string=obesity_pred$donor, "-", "_")
+all_metadata <- read.csv(file.path(PATH, "data/metadata/all_metadata.csv"), row.names = 1)
+combined_metadata <- dplyr::left_join(all_metadata, obesity_pred, by = "donor")
+rownames(combined_metadata) <- rownames(all_metadata)
+write.csv(combined_metadata, file.path(PATH, "data/metadata/all_metadata.csv"), row.names = TRUE)
+```
+
+
+```{r}
+# # Storing in Seurat
+# obesity_pred <- data.frame(donor = rownames(cancer_pred), obesity_prob = lr_testing_pred$.pred_1)
+# combined_seurat_integrated <- readRDS(file.path(PATH, "data/combined_seurat_filtered.rds"))
+# obesity_pred$donor <- str_replace_all(string=obesity_pred$donor, "-", "_")
+# write.csv(obesity_pred, file.path(PATH, "data/obesity_pred.csv"), row.names = FALSE)
+# 
+# combined_seurat_integrated@meta.data <- combined_seurat_integrated@meta.data %>%
+#   dplyr::left_join(x=., y=obesity_pred, by="donor")
+# saveRDS(combined_seurat_integrated, file.path(PATH, "data/combined_seurat_filtered.rds"))
+```

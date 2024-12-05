@@ -1,0 +1,189 @@
+---
+title: "Unintegrated BRCA Atlas"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged 
+    code_folding: hide
+    fig_width: 15 
+    fig_height: 10 
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(tidyverse)
+library(scCustomize)
+library(viridis)
+options(Seurat.object.assay.version = "v5")
+source("util.R")
+
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+do_save <- FALSE
+```
+
+# Loading Data
+```{r}
+combined_seurat_filtered <- readRDS(file.path(PATH, "data/sc/combined_seurat_filtered.rds"))
+immune_subset <- readRDS(file.path(PATH, "data/sc/combined_immune_subset.rds"))
+epi_subset <- readRDS(file.path(PATH, "data/sc/combined_epi_subset.rds"))
+strom_subset <- readRDS(file.path(PATH, "data/sc/combined_strom_subset.rds"))  
+```
+
+# Entire Atlas
+```{r}
+combined_seurat_filtered$celltypist_short <- celltypist_short(combined_seurat_filtered$celltypist_pred)
+combined_seurat_filtered$singler_short <- singler_short(combined_seurat_filtered$singler_pred)
+combined_seurat_filtered$author_short <- author_short(combined_seurat_filtered$celltype_new)
+p1 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster=FALSE
+) + labs(title="Dataset", x = "UMAP1", y="UMAP2")
+p2 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "subtype_new",
+  label = FALSE,
+  raster = FALSE
+) + labs(title="Subtype", x = "UMAP1", y="UMAP2")
+p3 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "celltypist_short",
+  label = TRUE,
+  label.size = 3,
+  repel = TRUE,
+  raster = FALSE
+) + labs(title="CellTypist", x = "UMAP1", y="UMAP2")
+p4 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "singler_short",
+  label = TRUE,
+  label.size = 3,
+  repel = TRUE,
+  raster = FALSE
+) + labs(title="SingleR", x = "UMAP1", y="UMAP2")
+p5 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "author_short",
+  label = TRUE,
+  label.size = 3, 
+  repel = TRUE,
+  raster = FALSE
+) + labs(title="Author", x = "UMAP1", y="UMAP2")
+p6 <- scCustomize::DimPlot_scCustom(
+  combined_seurat_filtered,
+  reduction = "umap.pca",
+  group.by = "grade",
+  label = FALSE,
+  raster = FALSE
+) + labs(title="Grade", x = "UMAP1", y="UMAP2")
+first_row <- cowplot::plot_grid(p1, p2, p6, ncol = 3)
+second_row <- cowplot::plot_grid(p3, p4, p5, ncol = 3)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, file.path(PATH, "results/umaps/umap_all_unintegrated.png"), width = 20, height = 10)
+```
+
+
+# Epithelial Only
+```{r}
+p1 <- scCustomize::DimPlot_scCustom(
+  epi_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Dataset", x = "UMAP1", y = "UMAP2")
+p2 <- scCustomize::DimPlot_scCustom(
+  epi_subset,
+  reduction = "umap.pca",
+  group.by = "subtype_new",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Subtype", x = "UMAP1", y = "UMAP2")
+p3 <- scCustomize::DimPlot_scCustom(
+  epi_subset,
+  reduction = "umap.pca",
+  group.by = "celltypist_pred",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="CellTypist", x = "UMAP1", y = "UMAP2")
+p1 + p2 + p3 +  patchwork::plot_layout(ncol = 3, nrow = 1) 
+
+ggsave(file.path(PATH, "results/umaps/umap_epi_unintegrated.png"), width = 18, height = 6)
+```
+
+# Immune Only
+```{r}
+p1 <- scCustomize::DimPlot_scCustom(
+  immune_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Dataset", x = "UMAP1", y = "UMAP2")
+p2 <- scCustomize::DimPlot_scCustom(
+  immune_subset,
+  reduction = "umap.pca",
+  group.by = "subtype_new",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Subtype", x = "UMAP1", y = "UMAP2")
+p3 <- scCustomize::DimPlot_scCustom(
+  immune_subset,
+  reduction = "umap.pca",
+  group.by = "celltypist_pred",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="CellTypist", x = "UMAP1", y = "UMAP2")
+p1 + p2 + p3 +  patchwork::plot_layout(ncol = 3, nrow = 1) 
+
+ggsave(file.path(PATH, "results/umaps/umap_imm_unintegrated.png"), width = 18, height = 6)
+```
+
+# Stromal Only
+```{r}
+p1 <- scCustomize::DimPlot_scCustom(
+  strom_subset,
+  reduction = "umap.pca",
+  group.by = "batch",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Dataset", x = "UMAP1", y = "UMAP2")
+p2 <- scCustomize::DimPlot_scCustom(
+  strom_subset,
+  reduction = "umap.pca",
+  group.by = "subtype_new",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="Subtype", x = "UMAP1", y = "UMAP2")
+p3 <- scCustomize::DimPlot_scCustom(
+  strom_subset,
+  reduction = "umap.pca",
+  group.by = "celltypist_pred",
+  label = FALSE,
+  raster = FALSE,
+  shuffle = TRUE
+) + labs(title="CellTypist", x = "UMAP1", y = "UMAP2")
+p1 + p2 + p3 +  patchwork::plot_layout(ncol = 3, nrow = 1) 
+
+ggsave(file.path(PATH, "results/umaps/umap_strom_unintegrated.png"), width = 18, height = 6)
+```

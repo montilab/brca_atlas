@@ -1,0 +1,367 @@
+---
+title: "Strom Clusters"
+author: "Andrew Chen"
+date: "`r format(Sys.Date(),'%e, %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged 
+    code_folding: hide
+    fig_width: 15 
+    fig_height: 10 
+---
+
+```{r, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(Seurat)
+library(scCustomize)
+library(ggrepel)
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+source("util.R")
+options(ggrepel.max.overlaps = Inf)
+
+```
+
+# Loading Data
+```{r}
+strom_rpca <- readRDS(file.path(PATH, "data/sc/strom_rpca_subset.rds"))
+```
+
+# Annotations
+```{r}
+strom_rpca$celltypist_strom_only <- with(strom_rpca@meta.data, 
+                                     case_when(celltypist_broad == "Stromal" ~ celltypist_pred,
+                                               .default = celltypist_broad))
+strom_rpca$singler_strom_only <- with(strom_rpca@meta.data, 
+                                     case_when(singleR_broad == "Stromal" ~ singler_pred,
+                                               .default = singleR_broad))
+strom_rpca$author_strom_only <- with(strom_rpca@meta.data, 
+                                     case_when(author_broad == "Stromal" ~ celltype_new,
+                                               .default = author_broad))
+Idents(strom_rpca) <- strom_rpca$RNA_snn_res.0.4
+p1 <- DimPlot_scCustom(strom_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.4",
+                       label = TRUE,
+                       label.size = 3,
+                       repel = TRUE, 
+                       raster = FALSE) + labs(title = "Clustering (0.4)", x = "UMAP 1", y = "UMAP 2")
+p2 <- DimPlot_scCustom(strom_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "celltypist_strom_only",
+                       label = TRUE,
+                       label.size = 1.5,
+                       label.box = TRUE,
+                       repel = TRUE, 
+                       raster = FALSE) + 
+  labs(title = "Celltypist", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p3 <- DimPlot_scCustom(strom_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "singler_strom_only",
+                       label = TRUE,
+                       label.size = 1.5,
+                       label.box = TRUE,
+                       repel = TRUE, 
+                       raster = FALSE) + 
+  labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p4 <- DimPlot_scCustom(strom_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "author_strom_only",
+                       label = TRUE,
+                       label.size = 1.5,
+                       label.box = TRUE,
+                       repel = TRUE, 
+                       raster = FALSE) + 
+  labs(title = "Author", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+combined <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/stromal_rpca_annot_04.png"), height = 8, width = 9)
+combined
+```
+
+# Loading markers
+```{r}
+endothelial <- c("PLVAP", "CLDN5")
+mural <- c("RGS5", "ACTA2", "PDGFRB")
+fibroblasts <- c("COL1A1", "DCN", "LUM")
+mesothelial <- c("KRT19", "MSLN", "CALB2")
+prolif_stromal <- c("STMN1", "TOP2A", "MKI67")
+glial <- c("GPM6B", "CDH19")
+
+pan_cancer_stromal_sigs <- readRDS(file.path(PATH, "data/signatures/stromal/ye_2024/pan_cancer_stromal_sigs.rds"))
+pan_cancer_stromal_sigs <- lapply(pan_cancer_stromal_sigs, function(x) x[x %in% rownames(strom_rpca)])
+
+strom_sigs <- readRDS(file.path(PATH, "/data/signatures/stromal/wu_embo_2020/strom_sigs.rds"))
+strom_sigs <- lapply(strom_sigs, function(x) x[x %in% rownames(strom_rpca)])
+```
+
+# Endothelial {.tabset}
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = endothelial)
+```
+
+Endothelial subpopulations
+```{r}
+names(pan_cancer_stromal_sigs)[str_detect(names(pan_cancer_stromal_sigs), "ECs")]
+```
+
+```{r}
+ec_sub_sigs <- pan_cancer_stromal_sigs[str_detect(names(pan_cancer_stromal_sigs), "ECs")]
+ec_sub_sigs_top4 <- lapply(ec_sub_sigs, function(x) x[1:4])
+```
+
+## Aerocytes ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Aerocytes ECs`)
+```
+
+## Arterial ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Arterial ECs`)
+```
+
+## CD14+ circECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`CD14+ circECs`)
+```
+
+## Capillaries ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Capillaries ECs`)
+```
+
+## FOS+ Capillaries ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`FOS+ Capillaries ECs`)
+```
+
+## ISG15+ ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`ISG15+ ECs`)
+```
+
+## Immature ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Immature ECs`)
+```
+
+## Lymphatic ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Lymphatics ECs`)
+```
+
+## Venous ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Venous ECs`)
+```
+
+## Venous IL6+ ECs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = ec_sub_sigs_top4$`Venous IL6+ ECs`)
+```
+
+# Mural Cells {.tabset}
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural)
+```
+Mural subpopulations
+```{r}
+names(pan_cancer_stromal_sigs)[str_detect(names(pan_cancer_stromal_sigs), "SMCs|PCs")]
+```
+
+```{r}
+mural_sub_sigs <- pan_cancer_stromal_sigs[str_detect(names(pan_cancer_stromal_sigs), "SMCs|PCs")]
+mural_sub_sigs_top4 <- lapply(mural_sub_sigs, function(x) x[1:4])
+```
+
+## iPVL
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = strom_sigs$ipvl[1:4])
+```
+
+## dPVL
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = strom_sigs$dpvl[1:4])
+```
+
+## ATF3+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`ATF3+ PCs`)
+```
+
+## ATF3+ SMCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`ATF3+ SMCs`)
+```
+
+## CCL19+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`CCL19+ PCs`)
+```
+
+## ECM PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`ECM PCs`)
+```
+
+
+## FABP4+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`FABP4+ PCs`)
+```
+
+## Fibrogenic PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`Fibrogenic PCs`)
+```
+
+## HTRA3+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`HTRA3+ PCs`)
+```
+
+## ISG15+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`ISG15+ PCs`)
+```
+
+## RERGL high SMCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`RERGL high SMCs`)
+```
+
+## RERGL low SMCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`RERGL low SMCs`)
+```
+
+
+## SERPINE1+ PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`SERPINE1+ PCs`)
+```
+
+## Vascular PCs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mural_sub_sigs_top4$`Vascular PCs`)
+```
+
+
+# Fibroblast Cells {.tabset}
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fibroblasts)
+```
+
+Fibroblast subpopulations
+```{r}
+names(pan_cancer_stromal_sigs)[str_detect(names(pan_cancer_stromal_sigs), "Fib|CAFs")]
+```
+
+```{r}
+fib_sub_sigs <- pan_cancer_stromal_sigs[str_detect(names(pan_cancer_stromal_sigs), "Fib|CAFs")]
+fib_sub_sigs_top4 <- lapply(fib_sub_sigs, function(x) x[1:4])
+```
+
+## myCAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = strom_sigs$mycafs[1:4])
+```
+
+## iCAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = strom_sigs$icafs[1:4])
+```
+
+## ADAMDEC1+ TrsFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`ADAMDEC1+ TrsFib`)
+```
+
+## ATF3+ PanFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`ATF3+ PanFib`)
+```
+
+## CA12+ CAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`CA12+ CAFs`)
+```
+
+## CCL19+ Fib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`CCL19+ Fib`)
+```
+
+## COL11A1+ CAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`COL11A1+ CAFs`)
+```
+
+## DPT+ PanFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`DPT+ PanFib`)
+```
+
+
+## IL6+ iCAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`IL6+ iCAFs`)
+```
+
+## ISG15+ CAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`ISG15+ CAFs`)
+```
+
+## LAMP5+ CAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`LAMP5+ CAFs`)
+```
+
+## MYH11+ myoFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`MYH11+ myoFib`)
+```
+
+## NPNT+ TrsFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`NPNT+ TrsFib`)
+```
+
+## PI16+ PanFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`PI16+ PanFib`)
+```
+
+
+## SFRP4+ CAFs
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`SFRP4+ CAFs`)
+```
+
+## SOX6+ TrsFib
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = fib_sub_sigs_top4$`SOX6+ TrsFib`)
+```
+
+# Mesothelial Cells 
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = mesothelial)
+```
+
+
+# Prolif. Stromal Cells 
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = prolif_stromal)
+```
+
+
+# Glial Cells 
+```{r}
+Plot_Density_Custom(strom_rpca, reduction = "umap.rpca", features = glial)
+```

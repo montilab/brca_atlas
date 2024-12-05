@@ -1,0 +1,293 @@
+---
+title: "Diff. exp comparison"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE, echo=FALSE, message=FALSE}
+library(tidyverse)
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas")
+source(file.path(PATH, "../sig_recon/scripts/util.R"))
+```
+
+# Loading Data
+```{r}
+#imm
+imm_04_wilcox_markers <- readRDS(file.path(PATH, "results/clustering/imm_04_wilcox_markers.rds"))
+imm_04_wilcox_center_markers <- readRDS(file.path(PATH, "results/clustering/imm_04_wilcox_center_markers.rds"))
+imm_04_wilcox_scale_center_markers <- readRDS(file.path(PATH, "results/clustering/imm_04_wilcox_scale_center_markers.rds"))
+myeloid_04_mast_markers <- readRDS(file.path(PATH, "results/clustering/myeloid_04_mast_markers.rds"))
+lymphoid_04_mast_markers <- readRDS(file.path(PATH, "results/clustering/lymphoid_04_mast_markers.rds"))
+#strom
+strom_04_wilcox_markers <- readRDS(file.path(PATH, "results/clustering/strom_04_wilcox_markers.rds"))
+strom_04_wilcox_center_markers <- readRDS(file.path(PATH, "results/clustering/strom_04_wilcox_center_markers.rds"))
+strom_04_wilcox_scale_center_markers <- readRDS(file.path(PATH, "results/clustering/strom_04_wilcox_scale_center_markers.rds"))
+strom_04_mast_markers <- readRDS(file.path(PATH, "results/clustering/strom_04_mast_markers.rds"))
+#epi
+epi_02_wilcox_markers <- readRDS(file.path(PATH, "results/clustering/epi_02_wilcox_markers.rds"))
+epi_02_wilcox_center_markers <- readRDS(file.path(PATH, "results/clustering/epi_02_wilcox_center_markers.rds"))
+epi_02_wilcox_scale_center_markers <- readRDS(file.path(PATH, "results/clustering/epi_02_wilcox_scale_center_markers.rds"))
+epi_02_mast_markers <- readRDS(file.path(PATH, "results/clustering/epi_02_mast_markers.rds"))
+```
+
+# Background
+
+This is slow.
+```
+Seurat::FindAllMarkers(..., test.use="MAST", latent.vars="batch")
+```
+
+This is faster.
+```
+Seurat::FindAllMarkers(..., test.use="wilcox")
+```
+
+Motivating questions:
+
+1) How different are they?
+
+2) What about gene centering? 
+`ScaleData(do.center = TRUE, do.scale = FALSE, features = rownames(seurat_obj))`
+Or 
+`ScaleData(do.center = TRUE, do.scale = TRUE, features = rownames(seurat_obj))`
+
+```{r}
+imm_center_markers <- imm_04_wilcox_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(imm_center_markers, function(x) unique(x$cluster)) %>% unlist
+imm_center_markers <- lapply(imm_center_markers, function(x) x %>% dplyr::pull(gene))
+names(imm_center_markers) <- cluster_names
+
+imm_center_markers_50 <- lapply(imm_center_markers, function(x) x[1:50])
+
+imm_scale_center_markers <- imm_04_wilcox_scale_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(imm_scale_center_markers, function(x) unique(x$cluster)) %>% unlist
+imm_scale_center_markers <- lapply(imm_scale_center_markers, function(x) x %>% dplyr::pull(gene))
+names(imm_scale_center_markers) <- cluster_names
+
+imm_scale_center_markers_50 <- lapply(imm_scale_center_markers, function(x) x[1:50])
+
+imm_markers <- imm_04_wilcox_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(imm_markers, function(x) unique(x$cluster)) %>% unlist
+imm_markers <- lapply(imm_markers, function(x) x %>% dplyr::pull(gene))
+names(imm_markers) <- cluster_names
+
+imm_markers_50 <- lapply(imm_markers, function(x) x[1:50])
+
+myeloid_markers <- myeloid_04_mast_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(myeloid_markers, function(x) unique(x$cluster)) %>% unlist
+myeloid_markers <- lapply(myeloid_markers, function(x) x %>% dplyr::pull(gene))
+names(myeloid_markers) <- cluster_names
+
+myeloid_markers_50 <- lapply(myeloid_markers, function(x) x[1:50])
+
+lymphoid_markers <- lymphoid_04_mast_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(lymphoid_markers, function(x) unique(x$cluster)) %>% unlist
+lymphoid_markers <- lapply(lymphoid_markers, function(x) x %>% dplyr::pull(gene))
+names(lymphoid_markers) <- cluster_names
+
+lymphoid_markers_50 <- lapply(lymphoid_markers, function(x) x[1:50])
+```
+
+```{r}
+strom_center_markers <- strom_04_wilcox_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(strom_center_markers, function(x) unique(x$cluster)) %>% unlist
+strom_center_markers <- lapply(strom_center_markers, function(x) x %>% dplyr::pull(gene))
+names(strom_center_markers) <- cluster_names
+
+strom_center_markers_50 <- lapply(strom_center_markers, function(x) x[1:50])
+
+strom_scale_center_markers <- strom_04_wilcox_scale_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(strom_scale_center_markers, function(x) unique(x$cluster)) %>% unlist
+strom_scale_center_markers <- lapply(strom_scale_center_markers, function(x) x %>% dplyr::pull(gene))
+names(strom_scale_center_markers) <- cluster_names
+
+strom_scale_center_markers_50 <- lapply(strom_scale_center_markers, function(x) x[1:50])
+
+strom_markers <- strom_04_wilcox_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(strom_markers, function(x) unique(x$cluster)) %>% unlist
+strom_markers <- lapply(strom_markers, function(x) x %>% dplyr::pull(gene))
+names(strom_markers) <- cluster_names
+
+strom_markers_50 <- lapply(strom_markers, function(x) x[1:50])
+
+strom_mast_markers <- strom_04_mast_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(strom_mast_markers, function(x) unique(x$cluster)) %>% unlist
+strom_mast_markers <- lapply(strom_mast_markers, function(x) x %>% dplyr::pull(gene))
+names(strom_mast_markers) <- cluster_names
+
+strom_mast_markers_50 <- lapply(strom_mast_markers, function(x) x[1:50])
+```
+
+```{r}
+epi_center_markers <- epi_02_wilcox_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(epi_center_markers, function(x) unique(x$cluster)) %>% unlist
+epi_center_markers <- lapply(epi_center_markers, function(x) x %>% dplyr::pull(gene))
+names(epi_center_markers) <- cluster_names
+
+epi_center_markers_50 <- lapply(epi_center_markers, function(x) x[1:50])
+
+epi_scale_center_markers <- epi_02_wilcox_scale_center_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(epi_scale_center_markers, function(x) unique(x$cluster)) %>% unlist
+epi_scale_center_markers <- lapply(epi_scale_center_markers, function(x) x %>% dplyr::pull(gene))
+names(epi_scale_center_markers) <- cluster_names
+
+epi_scale_center_markers_50 <- lapply(epi_scale_center_markers, function(x) x[1:50])
+
+epi_markers <- epi_02_wilcox_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(epi_markers, function(x) unique(x$cluster)) %>% unlist
+epi_markers <- lapply(epi_markers, function(x) x %>% dplyr::pull(gene))
+names(epi_markers) <- cluster_names
+
+epi_markers_50 <- lapply(epi_markers, function(x) x[1:50])
+
+epi_mast_markers <- epi_02_mast_markers %>% 
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::group_split()
+cluster_names <- lapply(epi_mast_markers, function(x) unique(x$cluster)) %>% unlist
+epi_mast_markers <- lapply(epi_mast_markers, function(x) x %>% dplyr::pull(gene))
+names(epi_mast_markers) <- cluster_names
+
+epi_mast_markers_50 <- lapply(epi_mast_markers, function(x) x[1:50])
+```
+
+# Epi {.tabset}
+
+## Epi Wilcox (gc) v Wilcox
+```{r}
+vjaccard(epi_markers_50, epi_center_markers_50) %>% 
+  data.frame(cluster = names(epi_center_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Epi Wilcox (gc + sc) v Wilcox
+```{r}
+vjaccard(epi_markers_50, epi_scale_center_markers_50) %>% 
+  data.frame(cluster = names(epi_scale_center_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+
+## Epi Mast v Wilcox
+```{r}
+vjaccard(epi_mast_markers_50, epi_scale_center_markers_50) %>% 
+  data.frame(cluster = names(epi_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+# Stromal {.tabset}
+
+## Strom Wilcox (gc) v Wilcox
+```{r}
+vjaccard(strom_markers_50, strom_center_markers_50) %>% 
+  data.frame(cluster = names(strom_center_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Strom Wilcox (gc + sc) v Wilcox
+```{r}
+vjaccard(strom_markers_50, strom_scale_center_markers_50) %>% 
+  data.frame(cluster = names(strom_scale_center_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Strom Mast v Wilcox
+```{r}
+vjaccard(strom_mast_markers_50, strom_scale_center_markers_50) %>% 
+  data.frame(cluster = names(strom_center_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+# Immune {.tabset}
+
+## Imm Wilcox (gc) vs Wilcox
+```{r}
+vjaccard(imm_center_markers_50, imm_markers_50) %>% 
+  data.frame(cluster = names(imm_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Imm Wilcox (gc + sc) vs Wilcox
+```{r}
+vjaccard(imm_scale_center_markers_50, imm_markers_50) %>% 
+  data.frame(cluster = names(imm_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Imm Wilcox vs Mast (Myeloid Only)
+```{r}
+vjaccard(imm_scale_center_markers_50[names(myeloid_markers_50)], myeloid_markers_50) %>% 
+  data.frame(cluster = names(myeloid_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```
+
+## Imm Wilcox vs Mast (Lymphoid Only)
+```{r}
+vjaccard(imm_scale_center_markers_50[names(lymphoid_markers_50)], lymphoid_markers_50) %>% 
+  data.frame(cluster = names(lymphoid_markers_50), jacc = .) %>%
+  ggplot(aes(x = cluster, y = jacc, fill = cluster)) +
+  geom_bar(stat = "identity") +
+  labs(title = "jaccard similarity of top 50 Diff Exp genes")
+```

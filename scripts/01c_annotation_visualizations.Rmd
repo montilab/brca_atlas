@@ -1,0 +1,794 @@
+---
+title: "Automatic Annotation Visualizations"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(tidyverse)
+library(scCustomize)
+options(Seurat.object.assay.version = "v5")
+source("util.R")
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+DATA_PATH <- file.path(Sys.getenv("CBM"), "otherStudies/scRNAseq/brca")
+
+do_save <- FALSE
+```
+
+
+# Loading Data
+```{r}
+wu_natgen_2021 <- readRDS(file.path(DATA_PATH, "wu_natgen_2021/wu_natgen_seurat.rds"))
+wu_embo_2020 <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
+wu_genomemed_2021 <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
+pal_cancer <- readRDS(file.path(DATA_PATH, "pal_2021/pal_combined_seurat.rds"))
+qian <- readRDS(file.path(DATA_PATH, "qian_2020/qian_seurat.rds"))
+gao <- readRDS(file.path(DATA_PATH, "gao_2021/gao_seurat.rds"))
+tietscher_combined <- readRDS(file.path(DATA_PATH, "tietscher_2023/tietscher_combined_seurat.rds"))
+bassez_2021 <- readRDS(file.path(DATA_PATH, "bassez_2021/bassez_combined_seurat.rds"))
+xu_combined <- readRDS(file.path(DATA_PATH, "xu_2021/xu_combined_seurat.rds"))
+barkley_combined <- readRDS(file.path(DATA_PATH, "barkley_2022/barkley_combined_seurat.rds"))
+liu <- readRDS(file.path(DATA_PATH, "liu_2023/liu_seurat.rds"))
+wang_combined <- readRDS(file.path(DATA_PATH, "wang_2024/wang_combined_seurat.rds"))
+```
+
+```{r}
+# Cell Typist Data
+celltypist_paths <- list.files(file.path(PATH, "results/celltypist/"), full.names = TRUE)
+dataset_names <- lapply(celltypist_paths, function(x) str_match(x, "([^/]+)\\.csv")[2]) %>% unlist
+celltypist_data <- lapply(celltypist_paths, function(x) read.csv(x, row.names = 1))
+names(celltypist_data) <- dataset_names
+```
+
+```{r}
+# Adding Cell Typist Data
+stopifnot(all.equal(colnames(wu_natgen_2021), rownames(celltypist_data$wu_natgen_2021)))
+wu_natgen_2021$celltypist_pred <- celltypist_data$wu_natgen_2021$majority_voting
+stopifnot(all.equal(colnames(wu_embo_2020), rownames(celltypist_data$wu_embo_2020)))
+wu_embo_2020$celltypist_pred <- celltypist_data$wu_embo_2020$majority_voting
+stopifnot(all.equal(colnames(wu_genomemed_2021), rownames(celltypist_data$wu_genomemed_2021)))
+wu_genomemed_2021$celltypist_pred <- celltypist_data$wu_genomemed_2021$majority_voting
+stopifnot(all.equal(colnames(pal_cancer), rownames(celltypist_data$pal_2021)))
+pal_cancer$celltypist_pred <- celltypist_data$pal_2021$majority_voting
+stopifnot(all.equal(colnames(qian), rownames(celltypist_data$qian)))
+qian$celltypist_pred <- celltypist_data$qian$majority_voting
+stopifnot(all.equal(colnames(gao), rownames(celltypist_data$gao)))
+gao$celltypist_pred <- celltypist_data$gao$majority_voting
+stopifnot(all.equal(colnames(tietscher_combined), rownames(celltypist_data$tietscher_2023)))
+tietscher_combined$celltypist_pred <- celltypist_data$tietscher_2023$majority_voting
+stopifnot(all.equal(colnames(bassez_2021), rownames(celltypist_data$bassez_2021)))
+bassez_2021$celltypist_pred <- celltypist_data$bassez_2021$majority_voting
+stopifnot(all.equal(colnames(xu_combined), rownames(celltypist_data$xu_2021)))
+xu_combined$celltypist_pred <- celltypist_data$xu_2021$majority_voting
+stopifnot(all.equal(colnames(barkley_combined), rownames(celltypist_data$barkley_2022)))
+barkley_combined$celltypist_pred <- celltypist_data$barkley_2022$majority_voting
+stopifnot(all.equal(colnames(liu), rownames(celltypist_data$liu_2023)))
+liu$celltypist_pred <- celltypist_data$liu_2023$majority_voting
+stopifnot(all.equal(colnames(wang_combined), rownames(celltypist_data$wang_2024)))
+wang_combined$celltypist_pred <- celltypist_data$wang_2024$majority_voting
+```
+
+# Clustering
+```{r}
+wu_natgen_2021 <- FindNeighbors(wu_natgen_2021, dims = 1:50)
+wu_natgen_2021 <- FindClusters(wu_natgen_2021, resolution = 0.5)
+wu_embo_2020 <- FindNeighbors(wu_embo_2020, dims = 1:50)
+wu_embo_2020 <- FindClusters(wu_embo_2020, resolution = 0.5)
+wu_genomemed_2021 <- FindNeighbors(wu_genomemed_2021, dims = 1:50)
+wu_genomemed_2021 <- FindClusters(wu_genomemed_2021, resolution = 0.5)
+pal_cancer <- FindNeighbors(pal_cancer, dims = 1:50)
+pal_cancer <- FindClusters(pal_cancer, resolution = 0.5)
+qian <- FindNeighbors(qian, dims = 1:50)
+qian <- FindClusters(qian, resolution = 0.5)
+gao <- FindNeighbors(gao, dims = 1:50)
+gao <- FindClusters(gao, resolution = 0.5)
+tietscher_combined <- FindNeighbors(tietscher_combined, dims = 1:50)
+tietscher_combined <- FindClusters(tietscher_combined, resolution = 0.5)
+bassez_2021 <- FindNeighbors(bassez_2021, dims = 1:50)
+bassez_2021 <- FindClusters(bassez_2021, resolution = 0.5)
+xu_combined <- FindNeighbors(xu_combined, dims = 1:50)
+xu_combined <- FindClusters(xu_combined, resolution = 0.5)
+liu <- FindNeighbors(liu, dims = 1:50)
+liu <- FindClusters(liu, resolution = 0.5)
+wang_combined <- FindNeighbors(wang_combined, dims = 1:50)
+wang_combined <- FindClusters(wang_combined, resolution = 0.5)
+barkley_combined <- FindNeighbors(barkley_combined, dims = 1:50)
+barkley_combined <- FindClusters(barkley_combined, resolution = 0.5)
+```
+
+
+# Wu Natgen 2021
+```{r}
+wu_natgen_2021$singler_shortened <- singler_short(wu_natgen_2021$singler_pred)
+wu_natgen_2021$celltypist_shortened <- celltypist_short(wu_natgen_2021$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = wu_natgen_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = wu_natgen_2021,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = wu_natgen_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(wu_natgen_2021, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(wu_natgen_2021, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(wu_natgen_2021, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(wu_natgen_2021, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") + NoLegend()
+p8 <- scCustomize::DimPlot_scCustom(wu_natgen_2021, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2") + NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/wu_natgen_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+wu_natgen_2021@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/wu_natgen_pd.png"), width = 7, height =5)
+```
+
+# Wu Embo 2021
+```{r}
+wu_embo_2020$singler_shortened <- singler_short(wu_embo_2020$singler_pred)
+wu_embo_2020$celltypist_shortened <- celltypist_short(wu_embo_2020$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = wu_embo_2020,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = wu_embo_2020,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = wu_embo_2020,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(wu_embo_2020, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(wu_embo_2020, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(wu_embo_2020, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(wu_embo_2020, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2")
+p8 <- scCustomize::DimPlot_scCustom(wu_embo_2020,
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")  + NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/wu_embo_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+wu_embo_2020@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/wu_embo_pd.png"), width = 7, height =5)
+```
+
+# Wu Genomemed 2020
+```{r}
+wu_genomemed_2021$singler_shortened <- singler_short(wu_genomemed_2021$singler_pred)
+wu_genomemed_2021$celltypist_shortened <- celltypist_short(wu_genomemed_2021$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = wu_genomemed_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = wu_genomemed_2021,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = wu_genomemed_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(wu_genomemed_2021, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(wu_genomemed_2021, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(wu_genomemed_2021, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(wu_genomemed_2021, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2")
+p8 <- scCustomize::DimPlot_scCustom(wu_genomemed_2021,
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2") + NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/wu_genomemed_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+wu_genomemed_2021@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/wu_genomemed_pd.png"), width = 7, height =5)
+```
+
+# Pal
+```{r}
+pal_cancer$singler_shortened <- singler_short(pal_cancer$singler_pred)
+pal_cancer$celltypist_shortened <- celltypist_short(pal_cancer$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = pal_cancer,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = pal_cancer,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = pal_cancer,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(pal_cancer, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(pal_cancer, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(pal_cancer, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(pal_cancer, 
+                                    group.by = "scDblFinder.class",
+                                    raster = FALSE) + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2")
+p8 <- scCustomize::DimPlot_scCustom(pal_cancer, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5",
+                                    raster = FALSE) + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2") + NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/pal_cancer_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+pal_cancer@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/pal_cancer_pd.png"), width = 7, height =5)
+```
+
+# Qian
+```{r}
+qian$singler_shortened <- singler_short(qian$singler_pred)
+qian$celltypist_shortened <- celltypist_short(qian$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = qian,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = qian,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = qian,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(qian, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(qian, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(qian, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(qian, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(qian,
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2") + NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/qian_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+qian@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/qian_pd.png"), width = 7, height =5)
+```
+
+# Gao
+```{r}
+gao$singler_shortened <- singler_short(gao$singler_pred)
+gao$celltypist_shortened <- celltypist_short(gao$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = gao,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = gao,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = gao,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(gao, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(gao, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(gao, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(gao, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(gao,
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/gao_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+gao@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/gao_pd.png"), width = 7, height =5)
+```
+
+# Tietscher
+```{r}
+tietscher_combined$singler_shortened <- singler_short(tietscher_combined$singler_pred)
+tietscher_combined$celltypist_shortened <- celltypist_short(tietscher_combined$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = tietscher_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = tietscher_combined,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = tietscher_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(tietscher_combined, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(tietscher_combined, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(tietscher_combined, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(tietscher_combined, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(tietscher_combined, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/tietscher_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+tietscher_combined@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/tietscher_pd.png"), width = 7, height =5)
+```
+
+# Bassez
+```{r}
+bassez_2021$singler_shortened <- singler_short(bassez_2021$singler_pred)
+bassez_2021$celltypist_shortened <- celltypist_short(bassez_2021$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = bassez_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = bassez_2021,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = bassez_2021,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(bassez_2021, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(bassez_2021, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(bassez_2021, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(bassez_2021, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(bassez_2021, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/bassez_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+bassez_2021@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/bassez_pd.png"), width = 7, height =5)
+```
+
+# Xu
+Deciding to not use because of non-pure singler labels. High entropy.
+```{r}
+xu_combined$singler_shortened <- singler_short(xu_combined$singler_pred)
+xu_combined$celltypist_shortened <- celltypist_short(xu_combined$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = xu_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = xu_combined,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = xu_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(xu_combined, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(xu_combined, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(xu_combined, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(xu_combined, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(xu_combined, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/xu_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+xu_combined@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/xu_pd.png"), width = 7, height =5)
+```
+
+# Liu
+```{r}
+liu$singler_shortened <- singler_short(liu$singler_pred)
+liu$celltypist_shortened <- celltypist_short(liu$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = liu,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = liu,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = liu,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(liu, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(liu, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(liu, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(liu, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(liu, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/liu_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+liu@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/liu_pd.png"), width = 7, height =5)
+```
+
+# Wang
+```{r}
+wang_combined$singler_shortened <- singler_short(wang_combined$singler_pred)
+wang_combined$celltypist_shortened <- celltypist_short(wang_combined$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = wang_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = wang_combined,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = wang_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(wang_combined, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(wang_combined, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(wang_combined, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(wang_combined, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(wang_combined, 
+                                    label = TRUE,
+                                    label.size = 4,
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/wang_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+wang_combined@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/wang_pd.png"), width = 7, height =5)
+```
+
+# Barkley
+Deciding to not use because of non-pure singler labels. High entropy.
+```{r}
+barkley_combined$singler_shortened <- singler_short(barkley_combined$singler_pred)
+barkley_combined$celltypist_shortened <- celltypist_short(barkley_combined$celltypist_pred)
+p1 <- DimPlot_scCustom(seurat_object = barkley_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltype_major",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "Author", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p2 <- DimPlot_scCustom(seurat_object = barkley_combined,
+                       reduction = "umap.pca",
+                       group.by = "singler_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p3 <- DimPlot_scCustom(seurat_object = barkley_combined,
+                       reduction = "umap.pca",
+                       group.by = "celltypist_shortened",
+                       label = TRUE, 
+                       label.size = 3, 
+                       repel = TRUE) + labs(title = "CellTypist", x = "UMAP 1", y = "UMAP 2")+ theme(legend.text = element_text(size=11))
+p4 <- scCustomize::FeaturePlot_scCustom(barkley_combined, "EPCAM") + labs(x = "UMAP 1", y = "UMAP 2")
+p5 <- scCustomize::FeaturePlot_scCustom(barkley_combined, "PTPRC") + labs(x = "UMAP 1", y = "UMAP 2")
+p6 <- scCustomize::FeaturePlot_scCustom(barkley_combined, "FAP") + labs(x = "UMAP 1", y = "UMAP 2")
+p7 <- scCustomize::DimPlot_scCustom(barkley_combined, 
+                                    group.by = "scDblFinder.class") + labs(title = "scDoublet Classification", x = "UMAP 1", y = "UMAP 2") 
+p8 <- scCustomize::DimPlot_scCustom(barkley_combined,  
+                                    label = TRUE,
+                                    label.size = 4, 
+                                    group.by = "RNA_snn_res.0.5") + labs(title = "Louvain Clustering (0.5)", x = "UMAP 1", y = "UMAP 2")+ NoLegend()
+
+first_row <- cowplot::plot_grid(p1, p2, p3, p8, ncol = 4)
+second_row <- cowplot::plot_grid(p4, p5, p6, p7, ncol = 4)
+combined_plot <- cowplot::plot_grid(first_row, second_row, ncol = 1, rel_heights = c(1, 1))
+
+ggsave(plot = combined_plot, filename = file.path(PATH, "results/annotation/barkley_pd.png"), width = 25, height = 10)
+```
+
+```{r}
+barkley_combined@meta.data %>% 
+  dplyr::group_by(seurat_clusters) %>% 
+  dplyr::summarise(doublet_frac = sum(scDblFinder.class == "doublet")/n()) %>% 
+  ggplot(data = ., aes(x = seurat_clusters, y = doublet_frac, fill = seurat_clusters)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage") +
+  xlab("Cluster") +
+  ggtitle("Percentage of Doublets per Cluster") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 60))
+ggsave(filename = file.path(PATH, "results/annotation/scdoublet/barkley_pd.png"), width = 7, height =5)
+```
+
+# Removing doublets
+```{r}
+# tietscher_combined <- subset(tietscher_combined,
+#                              (seurat_clusters != 31))
+# tietscher_combined <- subset(tietscher_combined, 
+#                              (!is.na(tietscher_combined$celltype_major) & scDblFinder.class != "doublet"))
+# liu <- subset(liu,
+#               (scDblFinder.class != "doublet"))
+# pal_cancer <- subset(pal_cancer,
+#               (seurat_clusters != 44))
+# wang_combined <- subset(wang_combined,
+#                         (seurat_clusters != 36))
+# wang_combined <- subset(wang_combined,
+#                         (scDblFinder.class != "doublet"))
+# wu_genomemed_2021 <- subset(wu_genomemed_2021,
+#                             (seurat_clusters != 24))
+# wu_genomemed_2021 <- subset(wu_genomemed_2021,
+#                             (celltype_major != "Doublets"))
+bassez_2021 <- subset(bassez_2021,
+                      (scDblFinder.class != "doublet"))
+# gao <- subset(gao, 
+#               (scDblFinder.class != "doublet"))
+# qian <- subset(qian,
+#                (scDblFinder.class != "doublet"))
+```
+
+
+# Saving
+```{r}
+# saveRDS(wu_natgen_2021, file.path(DATA_PATH, "wu_natgen_2021/wu_natgen_seurat.rds"))
+# saveRDS(wu_embo_2020, file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
+# saveRDS(wu_genomemed_2021, file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
+# saveRDS(pal_cancer, file.path(DATA_PATH, "pal_2021/pal_combined_seurat.rds"))
+# saveRDS(qian, file.path(DATA_PATH, "qian_2020/qian_seurat.rds"))
+# saveRDS(gao, file.path(DATA_PATH, "gao_2021/gao_seurat.rds"))
+# saveRDS(tietscher_combined, file.path(DATA_PATH, "tietscher_2023/tietscher_combined_seurat.rds"))
+saveRDS(bassez_2021, file.path(DATA_PATH, "bassez_2021/bassez_combined_seurat.rds"))
+# saveRDS(xu_combined, file.path(DATA_PATH, "xu_2021/xu_combined_seurat.rds"))
+# saveRDS(barkley_combined, file.path(DATA_PATH, "barkley_2022/barkley_combined_seurat.rds"))
+# saveRDS(liu, file.path(DATA_PATH, "liu_2023/liu_seurat.rds"))
+# saveRDS(wang_combined, file.path(DATA_PATH, "wang_2024/wang_combined_seurat.rds"))
+```
+

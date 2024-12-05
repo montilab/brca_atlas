@@ -1,0 +1,376 @@
+---
+title: "Epi Clusters"
+author: "Andrew Chen"
+date: "`r format(Sys.Date(),'%e, %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged 
+    code_folding: hide
+    fig_width: 15 
+    fig_height: 10 
+---
+
+```{r, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(Seurat)
+library(scCustomize)
+library(ggrepel)
+library(AUCell)
+library(hypeR)
+library(cluster)
+
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+source("util.R")
+options(ggrepel.max.overlaps = Inf)
+do_save <- FALSE
+```
+
+# Loading Data
+```{r}
+epi_rpca <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+```
+
+## AUC scores
+```{r}
+cells_auc_emt <- readRDS(file.path(PATH, "data/auc/epi_emt.rds"))
+cells_auc_prolif_inflamm <- readRDS(file.path(PATH, "data/auc/epi_prolif_inflam.rds"))
+# cells_auc_reactome <- readRDS(file.path(PATH, "data/auc/epi_reactome.rds"))
+cells_auc_hallmark <- readRDS(file.path(PATH, "data/auc/epi_hallmark.rds"))
+cells_auc_hbca <- readRDS(file.path(PATH, "data/auc/epi_hbca.rds"))
+```
+
+```{r}
+epi_rpca$prolif <- cells_auc_prolif_inflamm@assays@data$AUC["proliferation",]
+epi_rpca$inflam <- cells_auc_prolif_inflamm@assays@data$AUC["inflammation",]
+epi_rpca$epi_generic <- cells_auc_emt@assays@data$AUC["epi",]
+epi_rpca$mes_generic <- cells_auc_emt@assays@data$AUC["mes",]
+epi_rpca$epi_breast_up <- cells_auc_emt@assays@data$AUC["epi_up",]
+epi_rpca$mes_breast_up <- cells_auc_emt@assays@data$AUC["mes_up",]
+epi_rpca$int_breast_up <- cells_auc_emt@assays@data$AUC["int_up",]
+epi_rpca$epi_breast <- cells_auc_emt@assays@data$AUC["epi_up",] - cells_auc_emt@assays@data$AUC["epi_dn",]
+epi_rpca$mes_breast <- cells_auc_emt@assays@data$AUC["mes_up",] - cells_auc_emt@assays@data$AUC["mes_dn",]
+epi_rpca$int_breast <- cells_auc_emt@assays@data$AUC["int_up",] - cells_auc_emt@assays@data$AUC["int_dn",]
+```
+
+```{r}
+# epi_celltypes <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/epi_markers.rds"))
+# epi_barkley <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/barkley_natgen_2023/barkley_sigs.rds"))
+# epi_gavish <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/gavish_nature_2023/gavish_sigs.rds"))
+# epi_xu <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/xu_cellreports_2024/xu_sigs.rds"))
+# 
+# epi_celltypes <- lapply(epi_celltypes, function(x) x[x %in% rownames(epi_rpca)])
+# epi_barkley <- lapply(epi_barkley, function(x) x[x %in% rownames(epi_rpca)])
+# epi_gavish <- lapply(epi_gavish, function(x) x[x %in% rownames(epi_rpca)])
+# epi_xu <- lapply(epi_xu, function(x) x[x %in% rownames(epi_rpca)])
+
+hallmark_genesets <- hypeR::msigdb_download(species="Homo sapiens", category="H")
+reactome_genesets <- hypeR::enrichr_download("Reactome_2022" )
+#epi_all <- c(epi_celltypes, epi_barkley, epi_gavish, epi_xu)
+#epi_all <- c(hallmark_genesets, reactome_genesets)
+```
+
+## inferCNV scores
+
+```{r}
+combined_malig_data <- readRDS(file.path(PATH,
+                                         "data/infercnv/combined_infercnv_data.rds"))
+```
+
+
+# Annotations {.tabset}
+
+## Metadata
+```{r}
+epi_rpca$celltypist_epi_only <- with(epi_rpca@meta.data, 
+                                     case_when(celltypist_broad == "Epithelial" ~ celltypist_pred,
+                                               .default = celltypist_broad))
+epi_rpca$singler_epi_only <- with(epi_rpca@meta.data, 
+                                     case_when(singleR_broad == "Epithelial" ~ singler_pred,
+                                               .default = singleR_broad))
+epi_rpca$author_epi_only <- with(epi_rpca@meta.data, 
+                                     case_when(author_broad == "Epithelial" ~ celltype_new,
+                                               .default = author_broad))
+p1 <- DimPlot_scCustom(epi_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.2",
+                       label = TRUE,
+                       label.size = 3,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "Clustering (0.2)", x = "UMAP 1", y = "UMAP 2")
+
+p2 <- DimPlot_scCustom(seurat_object = epi_rpca,
+                    group.by = "celltypist_epi_only",
+                    reduction = "umap.rpca",
+                    label = TRUE,
+                    label.size = 1.5,
+                    label.box = TRUE,
+                    repel = TRUE,
+                    raster = FALSE) + 
+  labs(title = "Celltypist", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p3 <- DimPlot_scCustom(seurat_object = epi_rpca,
+                    group.by = "singler_epi_only",
+                    reduction = "umap.rpca",
+                    label = TRUE,
+                    label.size = 1.5, 
+                    label.box = TRUE,
+                    repel = TRUE,
+                    raster = FALSE) + 
+  labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p4 <- DimPlot_scCustom(epi_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "batch",
+                       label = TRUE,
+                       label.size = 3,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "Batch", x = "UMAP 1", y = "UMAP 2")
+combined <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/epi_rpca_annot_02.png"), height = 8, width = 9)
+
+combined
+```
+
+## Donors
+```{r}
+donor_data <- epi_rpca@meta.data %>% 
+  dplyr::group_by(RNA_snn_res.0.2) %>% 
+  dplyr::summarise(
+    distinct_count = n_distinct(donor), 
+    entropy = {
+      p <- table(donor) / n()
+      if(n_distinct(donor) > 1) {
+        -sum(p * log2(p)) / log2(n_distinct(donor))
+      } else {
+        -sum(p * log2(p))
+      }
+})
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 145, palette = "varibow")
+p1 <- epi_rpca@meta.data %>% 
+  dplyr::count(RNA_snn_res.0.2, donor) %>% 
+  ggplot(aes(x = reorder(RNA_snn_res.0.2, n, sum, decreasing = TRUE), fill = donor, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme(legend.position = "none",
+        text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "Cells", title = "Number of Donors/Cluster")
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 19, palette = "varibow")
+p2 <- donor_data %>% 
+  ggplot(aes(x = reorder(RNA_snn_res.0.2, entropy, decreasing = TRUE), fill = RNA_snn_res.0.2, y = entropy)) +
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme(legend.position = "none",
+        text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "Cells", title = "Entropy of donor frequencies per cluster")
+combined <- cowplot::plot_grid(p1, p2, nrow = 1, ncol = 2)  
+combined
+```
+
+
+## Hormone/HER2 Expression
+```{r}
+p1 <- DimPlot_scCustom(epi_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.2",
+                       label = TRUE,
+                       label.size = 3,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "Clustering (0.2)", x = "UMAP 1", y = "UMAP 2")
+p2 <- DimPlot_scCustom(epi_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "subtype_new",
+                       label = TRUE,
+                       label.size = 3,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "Subtype", x = "UMAP 1", y = "UMAP 2")
+p3 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "ESR1")
+p4 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "ESR2")
+p5 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "PGR")
+p6 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "ERBB2")
+combined <- cowplot::plot_grid(p1, p2, p3, p4, p5, p6, ncol = 3, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/epi_rpca_subtype_02.png"), height = 8, width = 12)
+
+combined
+```
+
+## Proliferation/Inflammation
+```{r}
+p1 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "prolif")  + labs(title = "Proliferation", x = "UMAP 1", y = "UMAP 2")
+p2 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "inflam") + labs(title = "Inflammation", x = "UMAP 1", y = "UMAP 2")
+combined <- cowplot::plot_grid(p1, p2, ncol = 2, nrow = 1)
+combined
+```
+
+
+## Tan 2014
+```{r}
+p1 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "epi_generic")  + labs(title = "E state (Generic)", x = "UMAP 1", y = "UMAP 2")
+p2 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "mes_generic") + labs(title = "M state (Generic)", x = "UMAP 1", y = "UMAP 2")
+combined <- cowplot::plot_grid(p1, p2, ncol = 2, nrow = 1)
+combined
+```
+
+## Winkler 2024 Up
+```{r}
+p1 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "epi_breast_up")  + labs(title = "E State Breast Up", x = "UMAP 1", y = "UMAP 2")
+p2 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "int_breast_up") + labs(title = "I State Breast Up", x = "UMAP 1", y = "UMAP 2")
+p3 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "mes_breast_up") + labs(title = "M State Breast Up", x = "UMAP 1", y = "UMAP 2")
+combined <- cowplot::plot_grid(p1, p2, p3, ncol = 3, nrow = 1)
+combined
+```
+
+
+## Winkler 2024 Up-Down
+```{r}
+p1 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "epi_breast")  + labs(title = "E State Breast", x = "UMAP 1", y = "UMAP 2")
+p2 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "int_breast") + labs(title = "I State Breast", x = "UMAP 1", y = "UMAP 2")
+p3 <- FeaturePlot_scCustom(epi_rpca,
+                     reduction = "umap.rpca",
+                     features = "mes_breast") + labs(title = "M State Breast", x = "UMAP 1", y = "UMAP 2")
+combined <- cowplot::plot_grid(p1, p2, p3, ncol = 3, nrow = 1)
+combined
+```
+
+## Ranked E State Scores
+```{r}
+epi_rpca@meta.data %>% 
+  dplyr::select("RNA_snn_res.0.2", "epi_breast") %>%
+  ggplot() +
+  geom_boxplot(aes(x = reorder(RNA_snn_res.0.2, -epi_breast, median), y = epi_breast, fill = RNA_snn_res.0.2)) + 
+  labs(title = "E Scores by Cluster",
+       y = "E Score",
+       x = "Cluster") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16))
+```
+
+## Ranked I State Scores
+```{r}
+epi_rpca@meta.data %>% 
+  dplyr::select("RNA_snn_res.0.2", "int_breast") %>%
+  ggplot() +
+  geom_boxplot(aes(x = reorder(RNA_snn_res.0.2, -int_breast, median), y = int_breast, fill = RNA_snn_res.0.2)) + 
+  labs(title = "Int Scores by Cluster",
+       y = "Int Score",
+       x = "Cluster") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16))
+```
+
+## Ranked M State Scores
+```{r}
+epi_rpca@meta.data %>% 
+  dplyr::select("RNA_snn_res.0.2", "mes_breast") %>%
+  ggplot() +
+  geom_boxplot(aes(x = reorder(RNA_snn_res.0.2, -mes_breast, median), y = mes_breast, fill = RNA_snn_res.0.2)) + 
+  labs(title = "Mes Scores by Cluster",
+       y = "Mes Score",
+       x = "Cluster") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16))
+```
+
+# Dot plots {.tabset}
+
+## Combined
+```{r}
+emp_matrix <- epi_rpca@meta.data[,c("epi_breast", "int_breast", "mes_breast")] %>% t
+auc_assay <- CreateAssay5Object(counts = rbind(cells_auc_hallmark@assays@data$AUC,
+                                               cells_auc_hbca@assays@data$AUC[1:11,],
+                                               emp_matrix
+                                               ))
+auc_seurat <- CreateSeuratObject(auc_assay,
+                                 meta.data = epi_rpca@meta.data)
+Idents(auc_seurat) <- auc_seurat$RNA_snn_res.0.2
+Clustered_DotPlot(seurat_object = auc_seurat, 
+                  exp_color_min = 0,
+                  exp_color_max = 3,
+                  features = rownames(auc_seurat), 
+                  k = 10)
+```
+
+
+## Hallmark
+```{r}
+all.equal(epi_rpca %>% colnames, cells_auc_hallmark@assays@data$AUC %>% colnames)
+auc_assay <- CreateAssay5Object(counts = cells_auc_hallmark@assays@data$AUC)
+auc_seurat <- CreateSeuratObject(auc_assay,
+                                 meta.data = epi_rpca@meta.data)
+Idents(auc_seurat) <- auc_seurat$RNA_snn_res.0.2
+Clustered_DotPlot(seurat_object = auc_seurat, 
+                  exp_color_min = 0,
+                  exp_color_max = 3,
+                  features = rownames(auc_seurat), 
+                  k = 10)
+```
+
+## HBCA
+```{r}
+all.equal(epi_rpca %>% colnames, cells_auc_hbca@assays@data$AUC %>% colnames)
+auc_assay <- CreateAssay5Object(counts = cells_auc_hbca@assays@data$AUC[1:11,])
+auc_seurat <- CreateSeuratObject(auc_assay,
+                                 meta.data = epi_rpca@meta.data)
+Idents(auc_seurat) <- auc_seurat$RNA_snn_res.0.2
+Clustered_DotPlot(seurat_object = auc_seurat, 
+                  features = rownames(auc_seurat), 
+                  exp_color_min = 0,
+                  exp_color_max = 3,
+                  cluster_feature = TRUE,
+                  k = 5)
+```
+
+## EMP
+```{r}
+auc_assay <- epi_rpca@meta.data[,c("epi_breast", "int_breast", "mes_breast")] %>% t
+auc_seurat <- CreateSeuratObject(auc_assay,
+                                 meta.data = epi_rpca@meta.data)
+Idents(auc_seurat) <- auc_seurat$RNA_snn_res.0.2
+Clustered_DotPlot(seurat_object = auc_seurat, 
+                  exp_color_min = 0,
+                  exp_color_max = 3,
+                  features = rownames(auc_seurat),
+                  cluster_feature = FALSE)
+```

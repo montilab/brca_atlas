@@ -1,0 +1,446 @@
+---
+title: "Imm Clusters"
+author: "Andrew Chen"
+date: "`r format(Sys.Date(),'%e, %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged 
+    code_folding: hide
+    fig_width: 15 
+    fig_height: 10 
+---
+
+```{r, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(Seurat)
+library(scCustomize)
+library(ggrepel)
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+source("util.R")
+options(ggrepel.max.overlaps = Inf)
+
+```
+
+# Loading Data
+```{r}
+imm_rpca <- readRDS(file.path(PATH, "data/sc/imm_rpca_subset.rds"))
+```
+
+```{r}
+boroni_sigs <- readRDS(file.path(PATH, "data/signatures/immune/boroni_2024/pan_cancer_myeloid_sigs.rds"))
+boroni_sigs <- lapply(boroni_sigs, function(x) x[x %in% rownames(imm_rpca)])
+boroni_sigs <- boroni_sigs[as.numeric(lapply(boroni_sigs, length)) > 0]
+
+immune_celltypes <- readRDS(file.path(PATH, "data/signatures/immune/combined_celltypes.rds"))
+immune_celltypes <- lapply(immune_celltypes, function(x) x[x %in% rownames(imm_rpca)])
+immune_pathways <- readRDS(file.path(PATH, "data/signatures/immune/immune_pathways.rds"))
+immune_pathways <- lapply(immune_pathways, function(x) x[x %in% rownames(imm_rpca)])
+```
+
+## Annotations {.tabset}
+
+## All
+```{r}
+imm_rpca$celltypist_imm_only <- with(imm_rpca@meta.data, 
+                                     case_when(celltypist_broad == "Immune" ~ celltypist_pred,
+                                               .default = celltypist_broad))
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, ", alpha-beta T cell", "")
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, ", alpha-beta memory T cell", " memory")
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, " positive memory", "positive memory")
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, "conventional dendritic cell", "cDC")
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, "plasmacytoid dendritic cell", "cDC")
+imm_rpca$singler_pred <- str_replace(imm_rpca$singler_pred, "cell", "")
+imm_rpca$singler_imm_only <- with(imm_rpca@meta.data, 
+                                  case_when(singleR_broad == "Immune" ~ singler_pred,
+                                            .default = singleR_broad))
+imm_rpca$author_imm_only <- with(imm_rpca@meta.data, 
+                                 case_when(author_broad == "Immune" ~ celltype_new,
+                                           .default = author_broad))
+Idents(imm_rpca) <- imm_rpca$RNA_snn_res.0.4
+
+p1 <- DimPlot_scCustom(imm_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.4",
+                       label = TRUE,
+                       label.size = 3,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "Clustering (0.4)", x = "UMAP 1", y = "UMAP 2")
+p2 <- DimPlot_scCustom(seurat_object = imm_rpca,
+                       group.by = "celltypist_imm_only",
+                       reduction = "umap.rpca",
+                       label = TRUE,
+                       label.size = 1.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + 
+  labs(title = "Celltypist", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p3 <- DimPlot_scCustom(seurat_object = imm_rpca,
+                       group.by = "singler_imm_only",
+                       reduction = "umap.rpca",
+                       label = TRUE,
+                       label.size = 1.5, 
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + 
+  labs(title = "SingleR", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+p4 <- DimPlot_scCustom(imm_rpca,
+                       reduction = "umap.rpca",
+                       group.by = "author_imm_only",
+                       label = TRUE,
+                       label.size = 1.5,
+                       label.box = TRUE,
+                       repel = TRUE, 
+                       raster = FALSE) + 
+  labs(title = "Author", x = "UMAP 1", y = "UMAP 2") +
+  theme(legend.position = "none")
+combined <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/umaps/imm_rpca_annot_04.png"), height = 8, width = 9)
+combined
+```
+
+
+# T + NK {.tabset}
+```{r}
+t_nk <- c("CD3E", "CD4", "CD8A", "NKG7")
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = t_nk)
+```
+
+```{r}
+names(boroni_sigs[27:37])
+```
+
+## NK_rest
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`NK_rest`)
+```
+
+## NK_cyto
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`NK_cyto`)
+```
+
+## NKT
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`NKT`)
+```
+
+## CD4_naive
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`TCD4_naive`)
+```
+
+## CD8_naive
+```{r}
+cd8_naive <- unique(c(boroni_sigs$`TCD8_naive`, immune_pathways$CD8_naive))
+```
+
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = cd8_naive[1:4])
+```
+
+## CD4_em
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`TCD4_em`)
+```
+
+## CD8_em
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`TCD8_em`)
+```
+
+## CD4_ex
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`TCD4_ex`)
+```
+
+## CD8_ex
+```{r}
+cd8_ex <- unique(c(boroni_sigs$TCD8_ex, immune_pathways$CD8_Tex))
+```
+
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = cd8_ex[1:10])
+```
+
+## CD4_reg
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`TCD4_reg`)
+```
+
+## CD4 Tfh
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD4_Tfh[1:4])
+```
+
+## CD8 Predysfunctional
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD8_predysfunc[1:4])
+```
+
+## CD8 Dysfunctional
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD8_dysfunctional[1:4])
+```
+
+## CD8 Cytotoxic
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD8_cytotoxic[1:4])
+```
+
+## CD8 TRM
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD8_TRM[1:4])
+```
+
+## CD8/CD4 T sr
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = immune_pathways$CD4_CD8_Tstr[1:4])
+```
+
+# Myeloid {.tabset}
+```{r}
+phagocytes <- c("LYZ", "AIF1", "CD68")
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = phagocytes)
+```
+
+```{r}
+names(boroni_sigs)[str_detect(names(boroni_sigs), pattern = "Mono|Mac|RTM|cDC|Neutrophil")]
+```
+
+## Monocytes {.tabset}
+
+### Mono_FCGR3A
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mono_FCGR3A`)
+```
+
+### Mono_CD14_FOS-
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mono_CD14_FOS-`)
+```
+
+### Mono_CD14_FOS+
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mono_CD14_FOS+`)
+```
+
+### Mono_IL1B
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mono_IL1B`)
+```
+
+### MonoInter_CXCL10
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`MonoInter_CXCL10`)
+```
+
+### MonoInter_CLEC10A
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`MonoInter_CLEC10A`)
+```
+
+## Macrophages {.tabset}
+
+### Mac_Alv_like
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_Alv_like`)
+```
+
+### Mac_Angio
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_Angio`)
+```
+
+### Mac_Hypo
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_Hypo`)
+```
+
+### Mac_ES
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_ES`)
+```
+
+### Mac_IFN
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_IFN`)
+```
+
+### Mac_LA
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_LA`)
+```
+
+### Mac_AgPres
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`Mac_AgPres`)
+```
+
+### RTM_IFN
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`RTM_IFN`)
+```
+
+### RTM_like_MT
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`RTM_like_MT`)
+```
+
+## Mast Cells
+
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = c("TPSAB1", "CMA1"))
+```
+
+# Neutrophils 
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = c(boroni_sigs$`Neutrophil_TAGLN2`, boroni_sigs$`Neutrophil_MMP9`))
+```
+
+# B cells
+```{r}
+b_cells <- c("MS4A1", "MZB1")
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = b_cells)
+```
+
+# Dendritic {.tabset}
+```{r}
+dendritic <- c("LILRA4", "IRF7")
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = dendritic)
+```
+
+## cDC1_CLEC9A
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC1_CLEC9A`)
+```
+
+## cDC2_AREG
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC2_AREG`)
+```
+
+## cDC2_FCER1A
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC2_FCER1A`)
+```
+
+## cDC3_CD14
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC3_CD14`)
+```
+
+## cDC4_FCGR3A
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC4_FCGR3A`)
+```
+
+## cDC_CXCL8
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC_CXCL8`)
+```
+
+## cDC2_CD207
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC2_CD207`)
+```
+
+## cDC_LAMP3
+```{r}
+Plot_Density_Custom(imm_rpca,
+                    reduction = "umap.rpca",
+                    features = boroni_sigs$`cDC_LAMP3`)
+```
