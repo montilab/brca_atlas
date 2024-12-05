@@ -1,0 +1,1299 @@
+---
+title: "Scientific Data Figures"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(Seurat)
+library(cowplot)
+library(emmeans)
+library(scCustomize)
+library(ggradar)
+library(ggsankey)
+library(sccomp)
+library(K2Taxonomer)
+library(dendextend)
+library(ComplexHeatmap)
+library(fastDummies)
+
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas")
+source(file.path(PATH, "../personal/andrewdr/grant_figures/dot_plot.R"))
+source(file.path(PATH, "scripts/util.R"))
+```
+
+# Figure 1
+
+```{r}
+combined_seurat_rpca <- readRDS(file.path(PATH, "data/sc/combined_seurat_rpca.rds"))
+```
+
+## By batch
+```{r}
+DimPlot_scCustom(combined_seurat_rpca,
+                 reduction = "umap.rpca",
+                 group.by = "batch",
+                 raster = FALSE) + labs(title = "Integrated Core Atlas", x = "UMAP 1", y = "UMAP 2")
+ggsave(filename = file.path(PATH, "results/final_figures/integrated_core_atlas_batches.png"), width = 6, height = 6)
+```
+
+## Metadata Plots
+
+### Patient
+```{r}
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 145, palette = "varibow")
+batch_summary <- combined_seurat_rpca@meta.data %>%
+  group_by(batch) %>%
+  summarize(
+    total_cells = n(),
+    unique_donors = n_distinct(donor)
+  ) %>% arrange(desc(total_cells))
+
+combined_seurat_rpca@meta.data %>% 
+  dplyr::count(batch, donor) %>% 
+  dplyr::group_by(batch) %>% 
+  dplyr::mutate(unique_donors = n_distinct(donor),
+                total_cells = sum(n)) %>% 
+  dplyr::ungroup() %>%
+  ggplot(aes(x = reorder(batch, total_cells, decreasing = TRUE), fill = donor, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  geom_text(
+    aes(y = total_cells, label = unique_donors),
+    vjust = -0.5,
+    size = 5
+  ) + 
+  scale_fill_manual(values = varibow_pal) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  theme(legend.position = "none",
+        text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = NULL, y = "Cells") 
+
+ggsave(filename = file.path(PATH, "results/final_figures/cells_patient.png"), height = 5, width = 6)
+```
+
+### Celltypist 
+```{r}
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 20, palette = "varibow")
+combined_seurat_rpca$celltypist_short <- celltypist_short(combined_seurat_rpca$celltypist_pred)
+combined_seurat_rpca@meta.data %>% 
+  dplyr::count(batch, celltypist_short) %>% 
+  ggplot(aes(x = reorder(batch, n, sum, decreasing = TRUE), fill = celltypist_short, y = n)) + 
+  geom_col(position = "fill", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = NULL, y = "Cells", fill = "Cell Type")
+
+ggsave(filename = file.path(PATH, "results/final_figures/batch_celltypes.png"), width = 10, height = 8)
+```
+
+### Subtype + Grade
+```{r}
+ditto_pal <- DiscretePalette_scCustomize(num_colors = 4, palette="ditto_seq")
+combined_seurat_rpca@meta.data %>% 
+  dplyr::group_by(subtype_new, grade) %>% 
+  dplyr::summarize(count = n_distinct(donor)) %>% 
+  ggplot(aes(x = reorder(subtype_new, -count, sum), fill = as.factor(grade), y = count)) + 
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = ditto_pal) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = NULL, y = "# Samples", fill = "Grade")
+
+ggsave(filename = file.path(PATH, "results/final_figures/metadata_subtype_grade.png"), width = 6, height = 6)
+```
+
+### Subtype Only
+```{r}
+combined_seurat_rpca@meta.data %>% 
+  dplyr::group_by(subtype_new) %>%
+  dplyr::summarise(count = n_distinct(donor)) %>%
+  
+  ggplot(aes(x = reorder(subtype_new, -count), y = count, fill = subtype_new)) +
+  scale_fill_manual(values = ditto_pal) +
+  geom_bar(stat="identity") + 
+  labs(x = "Subtype", y = "# Samples") +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1),
+        legend.position = "none")
+
+ggsave(filename = file.path(PATH, "results/final_figures/metadata_subtype.png"), width = 6, height = 6)
+```
+
+
+### Age
+```{r}
+combined_seurat_rpca@meta.data %>%
+  ggplot(aes(x = age, y = ..density..)) +
+  geom_histogram(bins=20, color = "black", fill = "salmon") +
+  labs(x = "Age", y = "Density") +
+  theme(text = element_text(size = 20),
+        legend.position = "none")
+ggsave(file.path(PATH, "results/final_figures/metadata_age.png"), height = 6, width = 6)
+```
+
+
+# Figure 2 - Compartment Specific Analysis of Atlas
+
+## Metrics
+```{r}
+bm_comb <- read.csv(file.path(PATH,  "results/benchmark/combined/subtype_celltype/bm_combined.csv"))
+bm_comb
+```
+
+```{r}
+bm_comb <- bm_comb %>% dplyr::filter(Embedding %in% c("Unintegrated", 
+                                                      "X_scANVI_ct", 
+                                                      "X_scVI", 
+                                                      "X_seurat_harmony", 
+                                                      "X_seurat_rpca", 
+                                                      "X_seurat_mnn"))
+bm_comb <- bm_comb %>% rename("Silhouette" = "Silhouette.batch",
+                              "PCR" = "PCR.comparison")
+
+bm_comb$Embedding <- c("Unintegrated", 
+                       "scANVI", 
+                       "scVI",
+                       "harmony", 
+                       "rpca", 
+                       "mnn")
+ditto_pal <- DiscretePalette_scCustomize(num_colors = 6, palette="ditto_seq")
+ditto_pal[3] <- "#FF00FF"
+bm_plot <- bm_comb %>% 
+  dplyr::select(c("Embedding", "Silhouette", "iLISI", "KBET", "PCR")) %>%
+  mutate_at(vars(-Embedding), as.numeric) %>%
+  mutate_at(vars(-Embedding), scales::rescale) %>%
+  dplyr::rename("group"= "Embedding") %>%
+  ggradar(values.radar = c("0", "0.5", "1.0"),
+          grid.label.size = 5, 
+          group.line.width = 0.5, 
+          group.point.size = 2,
+          plot.legend=TRUE,
+          gridline.mid.colour = "grey",
+          group.colours = ditto_pal,
+          label.gridline.max = TRUE)
+bm_plot
+```
+
+## Broad Clusters
+```{r}
+DimPlot_scCustom(combined_seurat_rpca,
+                 reduction = "umap.rpca",
+                 group.by = "cluster_broad",
+                 colors_use = c("#5A5156FF", "#F6222EFF", "#FF00FF"),
+                 raster = FALSE) + labs(title = "Broad Clusters", x = "UMAP 1", y = "UMAP 2")
+ggsave(filename = file.path(PATH, "results/final_figures/all_clustering_broad_final.png"), width = 5, height = 4)
+```
+
+## Broad Cell type by Patient
+```{r}
+polychrom_pal <- DiscretePalette_scCustomize(num_colors = 10, palette = "polychrome")
+combined_seurat_rpca@meta.data %>% 
+  dplyr::count(cluster_broad, batch) %>% 
+  ggplot(aes(x = reorder(cluster_broad, n, sum, decreasing = TRUE), fill = batch, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = polychrom_pal) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = NULL, y = "Cells")
+ggsave(filename = file.path(PATH, "results/final_figures/cells_broad_compartment.png"), width = 8, height = 6)
+```
+
+## Dot Plot
+```{r}
+strom_genes <- c("COL1A1", "COL1A2", "ENG")
+epi_genes <- c("EPCAM", "KRT8","KRT18")
+imm_genes <- c("PTPRC", "CD3D", "CD3E", "CD68")
+all_markers <- c(strom_genes, imm_genes, epi_genes)
+DotPlot_scCustom(seurat_object = combined_seurat_rpca,
+                 features = all_markers, group.by="cluster_broad",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE) + guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+
+ggsave(filename = file.path(PATH, "results/dotplots/all_broad_markers.png"), height = 4, width = 6)
+```
+
+## Sankey
+```{r}
+df <- combined_seurat_rpca@meta.data %>% 
+  dplyr::mutate(All = "All") %>%
+  dplyr::select(All, author_broad, cluster_broad) %>% 
+  dplyr::rename("Author" = author_broad, "Atlas" = cluster_broad) %>% 
+  ggsankey::make_long("All", "Author", "Atlas")
+
+df <- df %>% 
+  dplyr::mutate(node = factor(node, levels = c("All", "Unassigned", "Stromal", "Immune", "Epithelial")),
+                next_node = factor(next_node, levels = c("Unassigned", "Stromal", "Immune", "Epithelial")))
+```
+
+
+```{r}
+ggplot(df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = node, label = node)) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30",
+              smooth = 4) +
+  geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+  scale_fill_viridis_d(drop = FALSE) +
+  theme_sankey(base_size = 18) +
+  labs(x = NULL) +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = .5)) 
+ggsave(file.path(PATH, "results/final_figures/atlas_annot.png"), width = 6, height = 6)
+```
+
+```{r}
+# Mislabeled cells
+mislabeled_cells <- combined_seurat_rpca@meta.data %>% 
+  dplyr::filter(author_broad != "Unassigned") %>% 
+  dplyr::filter(author_broad != cluster_broad) %>% rownames
+mislabeled_subset <- combined_seurat_rpca[,mislabeled_cells]
+```
+
+```{r}
+strom_genes <- c("COL1A1", "COL1A2", "ENG")
+epi_genes <- c("EPCAM", "KRT8","KRT18")
+imm_genes <- c("PTPRC", "CD68", "CD3D", "CD3E")
+all_markers <- c(strom_genes, imm_genes, epi_genes)
+DotPlot_scCustom(seurat_object = mislabeled_subset,
+                 features = all_markers, group.by="cluster_broad",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE) + guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+ggsave(filename = file.path(PATH, "results/final_figures/mislabeled_broad_markers.png"), height = 4, width = 6)
+```
+
+```{r}
+strom_genes <- c("COL1A1", "COL1A2", "ENG")
+epi_genes <- c("EPCAM", "KRT8","KRT18")
+imm_genes <- c("PTPRC", "CD68", "CD3D", "CD3E")
+all_markers <- c(strom_genes, imm_genes, epi_genes)
+DotPlot_scCustom(seurat_object = mislabeled_subset,
+                 features = all_markers, group.by="author_broad",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE) + guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+ggsave(filename = file.path(PATH, "results/final_figures/mislabeled_author_broad_markers.png"), height = 4, width = 6)
+```
+
+# Figure 3 Cancer Epithelial Diversity
+```{r}
+epi_subset <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+```
+
+## Metadata
+
+### Donors
+```{r}
+donor_data <- epi_subset@meta.data %>% 
+  dplyr::group_by(RNA_snn_res.0.2) %>% 
+  dplyr::summarise(
+    distinct_count = n_distinct(donor), 
+    entropy = {
+      p <- table(donor) / n()
+      if(n_distinct(donor) > 1) {
+        -sum(p * log2(p)) / log2(n_distinct(donor))
+      } else {
+        -sum(p * log2(p))
+      }
+})
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 145, palette = "varibow")
+p1 <- epi_subset@meta.data %>% 
+  dplyr::count(RNA_snn_res.0.2, donor) %>% 
+  ggplot(aes(x = reorder(RNA_snn_res.0.2, n, sum, decreasing = TRUE), fill = donor, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme(legend.position = "none",
+        text = element_text(size = 12),
+        axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "# Cells", title = "Number of Donors/Cluster")
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 19, palette = "varibow")
+p2 <- donor_data %>% 
+  ggplot(aes(x = reorder(RNA_snn_res.0.2, entropy, decreasing = TRUE), fill = RNA_snn_res.0.2, y = entropy)) +
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme(legend.position = "none",
+        text = element_text(size = 12),
+        axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "Entropy", title = "Entropy of donor proportions")
+combined <- cowplot::plot_grid(p1, p2, nrow = 1, ncol = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/final_figures/donors_entropy.png"), width = 9, height = 4.5)
+```
+
+### Subtype/PAM
+```{r}
+pam50 <- read.csv("/restricted/projectnb/brcameta/brca_atlas/data/metadata/pam50.csv", row.names = NULL)[,2:3]
+pam50$pam50 <- str_replace(pam50$pam50, "Normal", "Normal-like")
+epi_subset$donor <- str_replace_all(epi_subset$donor, pattern = "-", replacement = "_")
+epi_pam50_metadata <- dplyr::left_join(epi_subset@meta.data,
+                                       pam50,
+                                       by = "donor")
+rownames(epi_pam50_metadata) <- rownames(epi_subset@meta.data)
+epi_subset@meta.data <- epi_pam50_metadata
+```
+
+```{r}
+epi_subset$celltypist_epi_only <- with(epi_subset@meta.data, 
+                                     case_when(celltypist_broad == "Epithelial" ~ celltypist_pred,
+                                               celltypist_broad != "Epithelial" ~ NA,
+                                               .default = celltypist_broad))
+p1 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.2",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title = "A - Clustering (0.2)", 
+                                            x = "UMAP 1", 
+                                            y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p2 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "celltypist_epi_only",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "B - HBCA", 
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p3 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "subtype_new",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "C - Subtype", 
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p4 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "pam50",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title = "D - Pam50", 
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+
+combined <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/final_figures/epi_subtype_pam50_hbca.png"), height = 8, width = 10)
+```
+
+## ComplexHeatmap
+```{r}
+combined_grouped_df <- readRDS(file.path(PATH, "results/annotation/epi/epi_scores.rds"))
+```
+
+```{r}
+minmax_scale <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+# Heatmap without last four clusters
+heatmap_dat <- combined_grouped_df %>% 
+  dplyr::select(-c(prop_pluri, prop_toti)) %>%
+  tibble::column_to_rownames(var = "RNA_snn_res.0.2")
+heatmap_dat <- heatmap_dat[-c(16:19),]
+heatmap_raw <- heatmap_dat
+heatmap_dat[,-c(1:8, 10:12)] <- apply(heatmap_dat[,-c(1:8, 10:12)], 2, minmax_scale)
+heatmap_dat <- heatmap_dat %>% as.matrix %>% t
+heatmap_raw <- heatmap_raw %>% as.matrix %>% t
+
+heatmap_labels <- rownames(heatmap_dat)
+heatmap_labels <- str_remove(heatmap_labels, "HALLMARK_")
+heatmap_labels <- str_replace_all(heatmap_labels, pattern = "_", replacement = " ")
+heatmap_labels[27:76] <- str_to_sentence(heatmap_labels[27:76])
+heatmap_labels[27:76] <- str_replace(heatmap_labels[27:76], "Pi3k" , "PI3K") %>%
+  str_replace(., "Wnt", "WNT") %>%
+  str_replace(., "Uv", "UV") %>%
+  str_replace(., "Tgf beta", "TGF Beta") %>% 
+  str_replace(., "Tnfa", "TNFA") %>%
+  str_replace(., "akt", "Akt") %>%
+  str_replace(., "Mtorc1", "MTORC1") %>%
+  str_replace(., "stat", "STAT") %>%
+  str_replace(., "Myc", "MYC") %>%
+  str_replace(., "jak", "JAK") %>%
+  str_replace(., "G2m", "G2M") %>%
+  str_replace(., "Il", "IL") %>%
+  str_replace(., "E2f", "E2F") %>%
+  str_replace(., "Dna", "DNA") %>%
+  str_replace(., "Kras", "KRAS")
+heatmap_labels[1:15] <- c("Grade 1 (6%)", 
+                          "Grade 2 (25%)",
+                          "Grade 3 (67%)",
+                          "ER+ (56%)",
+                          "HER2+ (10%)",
+                          "TNBC (28%)",
+                          "Mean Age",
+                          "Prop. Malignant",
+                          "Mean Cytotrace",
+                          "Prop. Diff",
+                          "Prop. Uni",
+                          "Prop. Oligo",
+                          "Mean Epi. State",
+                          "Mean Int. State", 
+                          "Mean Mes. State")
+rownames(heatmap_dat) <- heatmap_labels
+saveRDS(heatmap_dat, file = file.path(PATH, "results/annotation/epi/heatmap_dat_subset.rds"))
+
+# Define two color schemes
+# col_scores <- colorRamp2(c(-3, 0, 3), c("blue", "white", "red"))
+col_scores <- colorRamp2(c(0, 1), c("white", "red"))
+col_props <- colorRamp2(c(0, 0.5, 1),  c("#E5F5E0", "#A1D99B", "#31A354"))
+col_age <- colorRamp2(c(min(heatmap_dat["Mean Age",]), 
+                        median(heatmap_dat["Mean Age",]), 
+                        max(heatmap_dat["Mean Age",])), c(c("#FEE6CE", "#FDAE6B", "#E6550D")))
+# cluster_rows <- c(rep(FALSE, 15), rep(TRUE, nrow(heatmap_dat) - 15))
+# custom_clustering = function(mat, cluster_rows) {
+#   rows_to_cluster = cluster_rows
+#   d = dist(mat[rows_to_cluster, ])
+#   hc = hclust(d)
+#   hc
+# }
+
+ht <- Heatmap(heatmap_dat,
+              cluster_rows = FALSE,
+              cluster_columns = FALSE,
+              cell_fun = function(j, i, x, y, width, height, fill) {
+                if (i %in% c(1:6, 8, 10:12)) {
+                  grid.rect(x, y, width, height, gp = gpar(fill = col_props(heatmap_dat[i,j]), col = NA))
+                } else if (i == 7) {
+                  grid.rect(x, y, width, height, gp = gpar(fill = col_age(heatmap_dat[i, j]), col = NA))
+                } else {
+                  grid.rect(x, y, width, height, gp = gpar(fill = col_scores(heatmap_dat[i, j]), col = NA))
+                }
+                grid.text(sprintf("%.3f", heatmap_raw[i, j]), x, y, gp = gpar(fontsize = 3))
+              },
+              row_split = c(rep("Patient", 7), 
+                            "InferCNV", 
+                            rep("Cytotrace", 4), 
+                            rep("EMP", 3),
+                            rep("HBCA", 11),
+                            rep("Hallmark", 50)),
+              row_gap = unit(2, "mm"),
+              row_title_gp = gpar(fontsize = 5),
+              row_names_gp = gpar(fontsize = 5),
+              column_names_gp = gpar(fontsize = 5), 
+              column_names_rot = 45,
+              heatmap_legend_param = list(
+                labels_gp = gpar(fontsize = 5),  # Adjust size of legend labels
+                title_gp = gpar(fontsize = 5)    # Adjust size of legend title
+              ),
+              name = "Scores",
+              border = TRUE,
+              show_heatmap_legend = FALSE)
+# Create custom legends
+lgd_score <- Legend(col_fun = col_scores, title = "Scaled Scores")
+lgd_prop <- Legend(col_fun = col_props, title = "Proportions")
+lgd_age <- Legend(col_fun = col_age, title = "Age")
+
+# Draw the heatmap with custom legends
+
+png(file.path(PATH, "results/final_figures/epi/epi_scores_subset_clustered_heatmap_minmax_unscaled.png"), width=1500, height=2000, res = 300)
+draw(ht, heatmap_legend_list = list(lgd_score, lgd_prop, lgd_age))
+dev.off()
+```
+
+## K2
+```{r}
+K2summary <- readRDS(file.path(PATH, "scripts/K2Taxonomer_Epi_subset_AUC_2024_11_05_12_13_28_257863/K2results.rds"))
+K2dendrogram <- K2dendro(K2summary)
+```
+
+```{r}
+polychrome <- DiscretePalette_scCustomize(num_colors = 15, palette = "polychrome")
+all_nodes_labels <- K2dendrogram %>% get_nodes_attr("label")
+all_nodes_labels[is.na(all_nodes_labels)] <- polychrome
+all_nodes_labels[which((all_nodes_labels %in% 0:14))] <- polychrome
+all_nodes_labels[nchar(all_nodes_labels) == 1] <- "#000000"
+k2_epi_dend <- K2dendrogram %>% set("branches_col", all_nodes_labels) %>% set("labels_cex", 1)
+k2_epi_dend_gg <- as.ggdend(k2_epi_dend)
+ggplot(k2_epi_dend_gg, horiz = TRUE)
+ggsave(file.path(PATH, "results/final_figures/epi/k2_epi.png"), width = 6, height = 8)
+```
+
+## RF
+```{r}
+epi_data <- readRDS(file.path(PATH, "results/annotation/epi/scores_cell.rds"))
+epi_data <- epi_data %>% dplyr::filter(Cluster %in% 0:14)
+epi_data$Cluster <- droplevels(epi_data$Cluster)
+epi_data$Cytotrace_Class <- droplevels(epi_data$Cytotrace_Class)
+epi_data$Subtype <- NULL
+epi_data$`Cell id` <- NULL
+epi_data$InferCNV_Malig <- epi_data$InferCNV_Malig*1
+epi_data <- dummy_cols(epi_data, select_columns = c("Pam50", "Cytotrace_Class"), 
+                       remove_selected_columns = TRUE)
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Cytotrace_Class_", replacement = "Cyto. ")
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Cytotrace_Score", replacement = "Cyto. Score")
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Pam50_", replacement = "Pam50 ")
+rf_all_clusters <- readRDS(file.path(PATH, "results/annotation/epi/rf_all_clusters.rds"))
+rf_k2_1_clusters <- readRDS(file.path(PATH, "results/annotation/epi/rf_k2_1_clusters.rds"))
+rf_k2_2_clusters <- readRDS(file.path(PATH, "results/annotation/epi/rf_k2_2_clusters.rds"))
+rf_k2_3_clusters <- readRDS(file.path(PATH, "results/annotation/epi/rf_k2_3_clusters.rds"))
+
+rf_all_clusters <- rf_all_clusters[as.character(0:14)]
+```
+
+### All Clusters
+```{r}
+all_features <- colnames(epi_data %>% dplyr::select(-Cluster))
+
+# Create a binary matrix from the list
+all_only <- lapply(rf_all_clusters, function(x) x[["all"]][["imp"]])
+binary_matrix <- sapply(all_only, function(features) {
+  all_features %in% features
+})
+rownames(binary_matrix) <- all_features
+#colnames(binary_matrix) <- 0:14
+heatmap_data <- binary_matrix * 1
+
+# Barplot annotation
+all_acc <- lapply(rf_all_clusters, function(x) x[["all"]][["acc"]])
+all_acc <- all_acc %>% unlist %>% unname
+column_ha <- HeatmapAnnotation(
+  barplot = anno_barplot(all_acc),
+  height = unit(6, "mm"),
+  annotation_label = "RF OOB Acc."
+)
+
+# Sorting rows
+all_feats <- all_only %>% unlist %>% unname
+sorted_feats <- all_feats[!duplicated(all_feats)]
+heatmap_data <- heatmap_data[sorted_feats,]
+heatmap_data <- heatmap_data[rowSums(heatmap_data) > 0, ]
+
+epi_data_mean <- epi_data %>% dplyr::group_by(Cluster) %>% dplyr::summarise_all(mean, na.rm=TRUE) %>% column_to_rownames("Cluster")
+epi_data_mean <- epi_data_mean[colnames(heatmap_data),rownames(heatmap_data)] %>% t
+# Create the heatmap
+cell_size <- unit(3, "mm")  # Adjust this value to increase/decrease cell size
+
+ht <- Heatmap(heatmap_data,
+              top_annotation = column_ha,
+              name = "Presence",
+              border=TRUE,
+              width = ncol(heatmap_data) * cell_size,
+              height = nrow(heatmap_data) * cell_size,
+              cell_fun = function(j, i, x, y, width, height, fill) {
+                if(heatmap_data[i,j] == 0) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "white"))
+                } else if(epi_data_mean[i,j] < mean(epi_data_mean[i,])) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "blue"))
+                } else if(epi_data_mean[i,j] > mean(epi_data_mean[i,])){
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "salmon"))
+                }
+              },
+              row_names_gp = gpar(fontsize = 8),
+              column_names_gp = gpar(fontsize = 8),
+              column_title = "Clusters",
+              row_title = "Features",
+              cluster_columns = FALSE,
+              cluster_rows = FALSE,
+              show_row_names = TRUE,
+              show_column_names = TRUE,
+              show_heatmap_legend = FALSE)
+# Create the legend
+lgd <- Legend(
+  labels = c("High", "Low"),
+  title = "Scores",
+  legend_gp = gpar(fill = c("salmon", "blue")),
+  grid_height = unit(6, "mm"),
+  grid_width = unit(6, "mm")
+)
+png(file.path(PATH, "results/final_figures/epi/all_features_heatmap_sc.png"), width=1500, height=2000, res = 300)
+draw(ht, heatmap_legend_list = list(lgd))
+dev.off()
+
+```
+
+### K1 Clusters
+```{r}
+all_features <- colnames(epi_data %>% dplyr::select(-Cluster))
+
+# Create a binary matrix from the list
+all_only <- lapply(rf_k2_1_clusters, function(x) x[["all"]][["imp"]])
+binary_matrix <- sapply(all_only, function(features) {
+  all_features %in% features
+})
+all_only <- all_only[c("10_4_1_7_5", "3_8_9_2_6_13_11_12_0_14")]
+rownames(binary_matrix) <- all_features
+#colnames(binary_matrix) <- 0:14
+heatmap_data <- binary_matrix * 1
+colnames(heatmap_data) <- c("3~14", "10~5")
+heatmap_data <- heatmap_data[,c("10~5","3~14")]
+# Barplot annotation
+all_acc <- lapply(rf_k2_1_clusters, function(x) x[["all"]][["acc"]])
+all_acc <- all_acc %>% unlist %>% unname
+column_ha <- HeatmapAnnotation(
+  barplot = anno_barplot(all_acc),
+  height = unit(6, "mm"),
+  annotation_label = "RF OOB Acc."
+)
+
+# Sorting rows
+all_feats <- all_only %>% unlist %>% unname
+sorted_feats <- all_feats[!duplicated(all_feats)]
+heatmap_data <- heatmap_data[sorted_feats,]
+heatmap_data <- heatmap_data[rowSums(heatmap_data) > 0, ]
+
+epi_data$k2_meta_1 <- with(epi_data, case_when(Cluster %in% c(10,4,1,7,5) ~ "10~5",
+                                               Cluster %in% c(3,8,9,2,6,13,11,12,0,14) ~ "3~14",
+                                               .default = Cluster))
+epi_data_mean <- epi_data %>% dplyr::select(-Cluster) %>% dplyr::group_by(k2_meta_1) %>% dplyr::summarise_all(mean, na.rm=TRUE) %>% column_to_rownames("k2_meta_1")
+epi_data_mean <- epi_data_mean[colnames(heatmap_data),rownames(heatmap_data)] %>% t
+# Create the heatmap
+cell_size <- unit(3, "mm")  # Adjust this value to increase/decrease cell size
+
+ht <- Heatmap(heatmap_data,
+              top_annotation = column_ha,
+              name = "Presence",
+              border=TRUE,
+              width = ncol(heatmap_data) * cell_size,
+              height = nrow(heatmap_data) * cell_size,
+              cell_fun = function(j, i, x, y, width, height, fill) {
+                if(heatmap_data[i,j] == 0) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "white"))
+                } else if(epi_data_mean[i,j] < mean(epi_data_mean[i,])) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "blue"))
+                } else if(epi_data_mean[i,j] > mean(epi_data_mean[i,])){
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "salmon"))
+                }
+              },
+              row_names_gp = gpar(fontsize = 8),
+              column_names_gp = gpar(fontsize = 8),
+              column_names_rot = 60,
+              column_title = "Clusters",
+              row_title = "Features",
+              cluster_columns = FALSE,
+              cluster_rows = FALSE,
+              show_row_names = TRUE,
+              show_column_names = TRUE,
+              show_heatmap_legend = FALSE)
+# Create the legend
+lgd <- Legend(
+  labels = c("High", "Low"),
+  title = "Scores",
+  legend_gp = gpar(fill = c("salmon", "blue")),
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm")
+)
+png(file.path(PATH, "results/final_figures/epi/k2_meta_1_heatmap_sc.png"), width=1000, height=1000, res = 300)
+draw(ht, 
+     heatmap_legend_list = list(lgd))
+dev.off()
+```
+
+### K2 Clusters
+```{r}
+all_features <- colnames(epi_data %>% dplyr::select(-Cluster))
+
+# Create a binary matrix from the list
+all_only <- lapply(rf_k2_2_clusters, function(x) x[["all"]][["imp"]])
+binary_matrix <- sapply(all_only, function(features) {
+  all_features %in% features
+})
+rownames(binary_matrix) <- all_features
+#colnames(binary_matrix) <- 0:14
+heatmap_data <- binary_matrix * 1
+colnames(heatmap_data) <- c("3~6", "10~7", "11~14", "5", "13")
+heatmap_data <-heatmap_data[, c("10~7", "5", "3~6", "13", "11~14")]
+all_only <- all_only[c("10_4_1_7","5","3_8_9_2_6", "13", "11_12_0_14")]
+# Barplot annotation
+all_acc <- lapply(rf_k2_2_clusters, function(x) x[["all"]][["acc"]])
+all_acc <- all_acc %>% unlist %>% unname
+column_ha <- HeatmapAnnotation(
+  barplot = anno_barplot(all_acc),
+  height = unit(6, "mm"),
+  annotation_label = "RF OOB Acc."
+)
+
+# Sorting rows
+all_feats <- all_only %>% unlist %>% unname
+sorted_feats <- all_feats[!duplicated(all_feats)]
+heatmap_data <- heatmap_data[sorted_feats,]
+heatmap_data <- heatmap_data[rowSums(heatmap_data) > 0, ]
+
+epi_data <- epi_data %>% dplyr::select(-k2_meta_1)
+epi_data$k2_meta_2 <- with(epi_data, case_when(Cluster %in% c(10,4,1,7) ~ "10~7",
+                                               Cluster %in% c(3,8,9,2,6) ~ "3~6",
+                                               Cluster %in% c(11,12,0,14) ~ "11~14",
+                                               .default = Cluster))
+epi_data_mean <- epi_data %>% dplyr::select(-Cluster) %>% dplyr::group_by(k2_meta_2) %>% dplyr::summarise_all(mean, na.rm=TRUE) %>% column_to_rownames("k2_meta_2")
+epi_data_mean <- epi_data_mean[colnames(heatmap_data),rownames(heatmap_data)] %>% t
+# Create the heatmap
+cell_size <- unit(3, "mm")  # Adjust this value to increase/decrease cell size
+
+ht <- Heatmap(heatmap_data,
+              top_annotation = column_ha,
+              name = "Presence",
+              border=TRUE,
+              width = ncol(heatmap_data) * cell_size,
+              height = nrow(heatmap_data) * cell_size,
+              cell_fun = function(j, i, x, y, width, height, fill) {
+                if(heatmap_data[i,j] == 0) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "white"))
+                } else if(epi_data_mean[i,j] < mean(epi_data_mean[i,])) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "blue"))
+                } else if(epi_data_mean[i,j] > mean(epi_data_mean[i,])){
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "salmon"))
+                }
+              },
+              row_names_gp = gpar(fontsize = 8),
+              column_names_gp = gpar(fontsize = 8),
+              column_names_rot = 60,
+              column_title = "Clusters",
+              row_title = "Features",
+              cluster_columns = FALSE,
+              cluster_rows = FALSE,
+              show_row_names = TRUE,
+              show_column_names = TRUE,
+              show_heatmap_legend = FALSE)
+# Create the legend
+lgd <- Legend(
+  labels = c("High", "Low"),
+  title = "Scores",
+  legend_gp = gpar(fill = c("salmon", "blue")),
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm")
+)
+png(file.path(PATH, "results/final_figures/epi/k2_meta_2_heatmap_sc.png"), width=1000, height=1000, res = 300)
+draw(ht, heatmap_legend_list = list(lgd))
+dev.off()
+```
+
+### K3 Clusters
+```{r}
+all_features <- colnames(epi_data %>% dplyr::select(-Cluster))
+
+# Create a binary matrix from the list
+all_only <- lapply(rf_k2_3_clusters, function(x) x[["all"]][["imp"]])
+binary_matrix <- sapply(all_only, function(features) {
+  all_features %in% features
+})
+rownames(binary_matrix) <- all_features
+#colnames(binary_matrix) <- 0:14
+heatmap_data <- binary_matrix * 1
+colnames(heatmap_data) <- c("2~6", "1~7", "3~9", "10~4", "0~14", "11~12", "5", "13")
+heatmap_data <- heatmap_data[,c("10~4","1~7","5","3~9","2~6","13","11~12","0~14")]
+all_only <- all_only[c("10_4","1_7","5","3_9","2_6","13","11_12","0_14")]
+# Barplot annotation
+all_acc <- lapply(rf_k2_3_clusters, function(x) x[["all"]][["acc"]])
+all_acc <- all_acc %>% unlist %>% unname
+column_ha <- HeatmapAnnotation(
+  barplot = anno_barplot(all_acc),
+  height = unit(6, "mm"),
+  annotation_label = "RF OOB Acc."
+)
+
+# Sorting rows
+all_feats <- all_only %>% unlist %>% unname
+sorted_feats <- all_feats[!duplicated(all_feats)]
+heatmap_data <- heatmap_data[sorted_feats,]
+heatmap_data <- heatmap_data[rowSums(heatmap_data) > 0, ]
+
+# epi_data <- epi_data %>% dplyr::select(-k2_meta_2)
+epi_data$k2_meta_3 <- with(epi_data, case_when(Cluster %in% c(10,4) ~ "10~4",
+                                               Cluster %in% c(1,7) ~ "1~7",
+                                               Cluster %in% c(3,8,9) ~ "3~9",
+                                               Cluster %in% c(2,6) ~ "2~6",
+                                               Cluster %in% c(11,12) ~ "11~12",
+                                               Cluster %in% c(0,14) ~ "0~14",
+                                               .default = Cluster))
+epi_data_mean <- epi_data %>% dplyr::select(-Cluster) %>% dplyr::group_by(k2_meta_3) %>% dplyr::summarise_all(mean, na.rm=TRUE) %>% column_to_rownames("k2_meta_3")
+epi_data_mean <- epi_data_mean[colnames(heatmap_data),rownames(heatmap_data)] %>% t
+# Create the heatmap
+cell_size <- unit(3, "mm")  # Adjust this value to increase/decrease cell size
+
+ht <- Heatmap(heatmap_data,
+              top_annotation = column_ha,
+              name = "Presence",
+              border=TRUE,
+              width = ncol(heatmap_data) * cell_size,
+              height = nrow(heatmap_data) * cell_size,
+              cell_fun = function(j, i, x, y, width, height, fill) {
+                if(heatmap_data[i,j] == 0) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "white"))
+                } else if(epi_data_mean[i,j] < mean(epi_data_mean[i,])) {
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "blue"))
+                } else if(epi_data_mean[i,j] > mean(epi_data_mean[i,])){
+                  grid.rect(x = x, y = y, width = width, height = height,
+                            gp = gpar(col = "black", fill = "salmon"))
+                }
+              },
+              row_names_gp = gpar(fontsize = 8),
+              column_names_gp = gpar(fontsize = 8),
+              column_names_rot = 60,
+              column_title = "Clusters",
+              row_title = "Features",
+              cluster_columns = FALSE,
+              cluster_rows = FALSE,
+              show_row_names = TRUE,
+              show_column_names = TRUE,
+              show_heatmap_legend = FALSE)
+# Create the legend
+lgd <- Legend(
+  labels = c("High", "Low"),
+  title = "Scores",
+  legend_gp = gpar(fill = c("salmon", "blue")),
+  grid_height = unit(3, "mm"),
+  grid_width = unit(3, "mm")
+)
+png(file.path(PATH, "results/final_figures/epi/k2_meta_3_heatmap_sc.png"), width=1000, height=1000, res = 300)
+draw(ht, heatmap_legend_list = list(lgd))
+dev.off()
+```
+
+## Mast
+```{r}
+epi_subset <- subset(epi_subset,
+                     subset = RNA_snn_res.0.2 %in% 0:14)
+Idents(epi_subset) <- factor(epi_subset$RNA_snn_res.0.2, levels = as.character(0:14))
+```
+
+```{r}
+epi_mast_tables <- readRDS(file.path(PATH, "results/clustering/epi_02_mast_markers.rds"))
+epi_top5 <- epi_mast_tables %>% 
+  dplyr::filter(cluster %in% unique(Idents(epi_subset))) %>%
+  dplyr::mutate(cluster = factor(cluster, levels = levels(Idents(epi_subset))),
+                pct.diff = pct.1 - pct.2) %>% 
+  dplyr::filter(pct.diff > 0.1) %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::slice_head(n = 5) %>%
+  ungroup()
+```
+
+```{r}
+epi_heatmap <- DoHeatmap(epi_subset, features = epi_top5$gene, angle = 90, size = 3.5, hjust=1, lines.width = 600, group.bar = TRUE) + 
+  theme(axis.text.y = element_text(size = 12))
+ggsave(plot = epi_heatmap, 
+       filename = file.path(PATH, "results/final_figures/epi_mast_heatmap.png"),
+       width = 13, height = 14)
+```
+
+# Figure 4 Immune Cell Type Diversity
+
+```{r}
+imm_subset <- readRDS(file.path(PATH, "data/sc/imm_rpca_clean.rds"))
+saveRDS(imm_subset,file = file.path(PATH, "data/sc/imm_rpca_clean.rds"))
+Idents(imm_subset) <- imm_subset$RNA_snn_res.0.4
+Idents(imm_subset) <- factor(Idents(imm_subset),
+                                     levels = levels(Idents(imm_subset))[order(as.numeric(levels(Idents(imm_subset))))])
+```
+
+## Mast Heatmap
+```{r}
+lymphoid_mast_tables <- readRDS(file.path(PATH, "results/clustering/lymphoid_04_mast_markers.rds"))
+myeloid_mast_tables <- readRDS(file.path(PATH, "results/clustering/myeloid_04_mast_markers.rds"))
+imm_mast_tables <- rbind(lymphoid_mast_tables, myeloid_mast_tables)
+
+imm_top5 <- imm_mast_tables %>%
+  dplyr::filter(cluster %in% unique(Idents(imm_subset))) %>%
+  dplyr::mutate(cluster = factor(cluster, levels = levels(Idents(imm_subset))),
+                pct.diff = pct.1 - pct.2) %>%
+  dplyr::filter(pct.diff > 0.1) %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>%
+  dplyr::slice_head(n = 5) %>%
+  ungroup()
+```
+
+```{r}
+imm_heatmap <- DoHeatmap(imm_subset, features = imm_top5$gene, angle = 90, size = 3.5, hjust=1, lines.width = 800, group.bar = TRUE) + theme(axis.text.y = element_text(size = 12))
+ggsave(plot = imm_heatmap, 
+       filename = file.path(PATH, "results/final_figures/imm_mast_heatmap.png"),
+       width = 18, height = 15)
+```
+
+
+## Final Cluster Annot
+```{r}
+DimPlot_scCustom(imm_subset,
+                 reduction = "umap.rpca",
+                 group.by = "cluster_annot",
+                 label = TRUE, 
+                 label.size = 2,
+                 repel = TRUE,
+                 label.box = TRUE,
+                 raster = FALSE) + labs(title = NULL, x = "UMAP 1", y = "UMAP 2")
+ggsave(filename = file.path(PATH, "results/final_figures/cluster_annot_imm_final.png"), width = 6, height = 5)
+```
+
+## Dotplot
+```{r}
+lymphoid_subset <- subset(imm_subset, subset = RNA_snn_res.0.4 %in% c(1:6,8,11,12,19,20))
+myeloid_subset <- subset(imm_subset, subset = RNA_snn_res.0.4 %in% c(0,7,10,13,15,17,18,21))
+```
+
+
+```{r}
+lymphoid_subset$cluster_annot <- factor(lymphoid_subset$cluster_annot, levels = c("CD4 Ex", "CD4 Tcm", "CD4 Treg", "CD8 Isg", "CD8 Tcm", "T Prolif.", "NK", "B Cell", "B Cell (AP)", "Plasma"))
+myeloid_subset$cluster_annot <- factor(myeloid_subset$cluster_annot, levels = c("Mac RTM_Int", "Mac Ifn", "Mac LA", "Mac Prolif.", "moDC", "pDC", "mDC", "Mast"))
+
+lymphoid_sigs <- c("CXCL13", "TIGIT", "PDCD1", "IL7R", "ANXA1", "CD40LG", "CCR7", "FOXP3", "IL2RA", "CTLA4", "ISG15", "IFIT3", "IFIT1", "CCL5", "GZMK", "NKG7", "STMN1", "HMGB2", "MKI67", "KLRD1", "GZMB", "GNLY", "CCL4", "CD19", "CD74", "LAPTM5", "RCSD1", "HLA-DRA", "HLA-DRB5", "HLA-DQA2", "HLA-DQA1", "FKBP11", "PRDX4", "MZB1") %>% rev
+
+myeloid_sigs <- c("MS4A4A", "IGF1", "MAF", "PLTP", "APOE", "IFIT1", "IFIT2", "CXCL9", "CXCL10", "CXCL11", "FABP4", "FABP5", "LPL", "LIPA", "TREM2", "CTSK", "MMP9", "MKI67", "STMN1", "VCAN", "EREG", "CD1C", "CLEC9A", "XCR1", "CLEC4C", "LILRA4", "IL3RA", "TCL1A", "LAMP3", "CCR7", "CPA3", "TPSAB1", "MS4A2") %>% rev
+```
+
+```{r}
+DotPlot_scCustom(seurat_object = lymphoid_subset,
+                 features = lymphoid_sigs, group.by="cluster_annot",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE) + guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+ggsave(filename = file.path(PATH, "results/dotplots/lyphoid_canonical_markers.png"), height = 4, width = 11)
+```
+```{r}
+DotPlot_scCustom(seurat_object = myeloid_subset,
+                 features = myeloid_sigs, group.by="cluster_annot",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE) + guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+ggsave(filename = file.path(PATH, "results/dotplots/myeloid_canonical_markers.png"), height = 4, width = 11)
+```
+
+## Sankey 
+```{r}
+df <- imm_subset@meta.data %>% 
+  dplyr::mutate(cluster_major = case_when(str_detect(cluster_annot, "CD4|CD8|NK|Plasma|B") ~ "Lymphoid",
+                                          str_detect(cluster_annot, "Mac|Mast|DC") ~ "Myeloid",
+                                          str_detect(cluster_annot, "T Prolif.") ~ "Lymphoid")) %>%
+  dplyr::select(cluster_broad, cluster_major, cluster_annot) %>% 
+  dplyr::rename("Broad" = cluster_broad, "Level 1" = cluster_major, "Level 2" = cluster_annot) %>% 
+  ggsankey::make_long("Broad", "Level 1", "Level 2")
+df <- df %>% 
+  dplyr::mutate(node = factor(node, levels = c("Immune",
+                                               "Lymphoid", 
+                                               "B Cell", "B Cell (AP)", "Plasma",
+                                               "CD4 Ex", "CD4 Tcm", "CD4 Treg", "CD8 Isg", "CD8 Tcm", "NK", "T Prolif.",
+                                               "Myeloid",
+                                               "Mac Ifn", "Mac LA", "Mac RTM_Int", "Mac Prolif.", "Mast", "moDC", "mDC", "pDC")),
+                next_node = factor(next_node, levels = c("Lymphoid", 
+                                               "B Cell", "B Cell (AP)", "Plasma",
+                                               "CD4 Ex", "CD4 Tcm", "CD4 Treg", "CD8 Isg", "CD8 Tcm", "NK", "T Prolif.",
+                                               "Myeloid",
+                                               "Mac Ifn", "Mac LA", "Mac RTM_Int", "Mac Prolif.", "Mast", "moDC", "mDC", "pDC")))
+```
+
+```{r}
+ggplot(df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = node, label = node)) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30",
+              smooth = 4) +
+  geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+  scale_fill_viridis_d(drop = FALSE) +
+  theme_sankey(base_size = 18) +
+  labs(x = NULL,
+       title = "Immune Cell Diversity") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = .5)) 
+ggsave(file.path(PATH, "results/final_figures/imm_annot.png"), width = 6, height = 6)
+```
+
+
+# Figure 5 Stromal Cell Diversity
+
+```{r}
+strom_subset <- readRDS(file.path(PATH, "data/sc/strom_rpca_clean.rds"))
+Idents(strom_subset) <- strom_subset$RNA_snn_res.0.4
+```
+
+## Final Cluster Annotation
+```{r}
+DimPlot_scCustom(strom_subset,
+                 reduction = "umap.rpca",
+                 group.by = "cluster_annot",
+                 label = TRUE, 
+                 label.size = 2,
+                 repel = TRUE,
+                 label.box = TRUE,
+                 raster = FALSE) + labs(title = NULL, x = "UMAP 1", y = "UMAP 2")
+ggsave(filename = file.path(PATH, "results/final_figures/cluster_annot_strom_final.png"), width = 6, height = 5)
+```
+
+## Dot Plot
+```{r}
+pan_cancer_stromal_sigs <- readRDS(file.path(PATH, "data/signatures/stromal/ye_2024/pan_cancer_stromal_sigs.rds"))
+wu_strom_sigs <- readRDS(file.path(PATH, "data/signatures/stromal/wu_embo_2020/strom_sigs.rds"))
+# dotplot_sigs <- c(wu_strom_sigs["icafs"], pan_cancer_stromal_sigs[c("CA12+ CAFs", "COL11A1+ CAFs", "SFRP4+ CAFs",
+#                                                                     "Arterial ECs", "Capillaries ECs", "Immature ECs",
+#                                                                     "ISG15+ ECs", "Lymphatics ECs", "Venous ECs",
+#                                                                     "CCL19+ PCs", "ECM PCs")])
+# dotplot_sigs$VSMC <- c("MYH11", "RERGL")
+# dotplot_sigs <- dotplot_sigs[c("SFRP4+ CAFs", "COL11A1+ CAFs", "CA12+ CAFs", "icaf",
+#                                "Arterial ECs", "Capillaries ECs", "Immature ECs", "ISG15+ ECs", "Lymphatics ECs", "Venous ECs",
+#                                "ECM PCs", "CCL19+ PCs", "VSMC")] %>% rev
+# dotplot_sigs <- lapply(dotplot_sigs, function(x) x[x %in% rownames(strom_subset)]) %>% unlist %>% unname
+# dotplot_sigs <- dotplot_sigs[!duplicated(dotplot_sigs)]
+dotplot_sigs <- c("MYH11", "RERGL", "CCL21", "CCL19", "COL4A1", "COL4A2",
+                  "SELP", "ZNF385D", "PDPN", "MMRN1", "ISG15", "CXCL10", "CXCL11", "RSAD2", "IFIT3", "IFIT1", "PLVAP", "VWA1", "CA4", "RGCC", "FBLN5", "SEMA4G", "TSPAN2",
+                  "IGF1", "CXCL12", "CA12", "SLC16A3", "COL11A1", "SDC1", "CTHRC1", "SFRP4", "SFRP2", "CDC80", "OGN")
+strom_subset$cluster_annot <- factor(strom_subset$cluster_annot, levels = c("CAFs (SFRP4+)", "CAFs (COL11A1+)", "CAFs (CA12+)", "iCAF",
+                                                                            "Endo Arter.", "Endo Capil.", "Endo Imm.", "Endo ISG15+", "Endo Lymphatic", "Endo Vein", 
+                                                                            "PCs ECM", "PCs (CCL19+)", "VSMC"))
+DotPlot_scCustom(seurat_object = strom_subset,
+                 features = dotplot_sigs, group.by="cluster_annot",
+                 colors_use = viridis_plasma_dark_high,
+                 x_lab_rotate = TRUE)+ guides(color = guide_colorbar(title = "Average Scaled \nExpression"))
+# ggsave(filename = file.path(PATH, "results/dotplots/strom_canonical_markers_full.png"), height = 4, width = 22)
+ggsave(filename = file.path(PATH, "results/dotplots/strom_canonical_markers_2_4genes.png"), height = 4, width = 11)
+```
+
+## Mast Heatmap
+
+```{r}
+strom_mast_tables <- readRDS(file.path(PATH, "results/clustering/strom_04_mast_markers.rds"))
+
+# Filtering expression in cluster 
+strom_top5 <- strom_mast_tables %>% 
+  dplyr::filter(cluster %in% unique(Idents(strom_subset))) %>% 
+  dplyr::mutate(pct.diff = pct.1 - pct.2) %>% 
+  dplyr::filter(pct.diff > 0.1) %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>% 
+  dplyr::slice_head(n = 5) %>%
+  ungroup()
+```
+
+
+```{r}
+strom_heatmap <- DoHeatmap(strom_subset, features = strom_top5$gene, angle = 90, size = 3.5, hjust=1, lines.width = 600, group.bar = TRUE) + theme(axis.text.y = element_text(size = 12))
+ggsave(plot = strom_heatmap, 
+       filename = file.path(PATH, "results/final_figures/strom_mast_heatmap.png"),
+       width = 13, height = 14)
+```
+
+## Sankey
+```{r}
+df <- strom_subset@meta.data %>% 
+  dplyr::mutate(cluster_major = case_when(str_detect(cluster_annot, "CAF") ~ "Fibroblasts",
+                                          str_detect(cluster_annot, "Endo") ~ "Endothelial",
+                                          str_detect(cluster_annot, "PCs") ~ "Mural",
+                                          str_detect(cluster_annot, "VSMC") ~ "Mural")) %>%
+  dplyr::select(cluster_broad, cluster_major, cluster_annot) %>% 
+  dplyr::rename("Broad" = cluster_broad, "Level 1" = cluster_major, "Level 2" = cluster_annot) %>% 
+  ggsankey::make_long("Broad", "Level 1", "Level 2")
+
+df <- df %>% 
+  dplyr::mutate(node = factor(node, levels = c("Stromal",
+                                               "Endothelial",
+                                               "Endo Arter.", "Endo Imm.", "Endo ISG15+", "Endo Lymphatic", "Endo Vein", "Endo Capil.",
+                                               "Fibroblasts",
+                                               "CAFs (CA12+)", "CAFs (COL11A1+)", "CAFs (SFRP4+)", "iCAF",
+                                               "Mural",
+                                               "PCs ECM", "VSMC", "PCs (CCL19+)")),
+                next_node = factor(next_node, levels = c("Endothelial",
+                                                         "Endo Arter.", "Endo Imm.", "Endo ISG15+", "Endo Lymphatic", "Endo Vein", "Endo Capil.",
+                                                         "Fibroblasts",
+                                                         "CAFs (CA12+)", "CAFs (COL11A1+)", "CAFs (SFRP4+)", "iCAF",
+                                                         "Mural",
+                                                         "PCs ECM", "VSMC", "PCs (CCL19+)")))
+```
+
+```{r}
+ggplot(df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
+  geom_sankey(flow.alpha = .6,
+              node.color = "gray30",
+              smooth = 4) +
+  geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+  scale_fill_viridis_d(drop = FALSE) +
+  theme_sankey(base_size = 18) +
+  labs(x = NULL,
+       title = "Stromal Cell Diversity") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = .5)) 
+ggsave(file.path(PATH, "results/final_figures/stromal_annot.png"), width = 6, height = 6)
+```
+
+
+# Figure 6 Differential Abundance Analysis
+
+## Imm - Grade (Subtype)
+```{r}
+sccomp_grade_subtype <- readRDS(file.path(PATH, "results/sccomp/imm/grade_subtype.rds"))
+sccomp_grade_subtype_df <- sccomp_grade_subtype %>% sccomp_prep_data(., param = "grade_binhigh")
+sccomp_grade_subtype_order <- sccomp_grade_subtype_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_grade_subtype_df
+```
+
+```{r}
+sccomp_grade_subtype_plot <- sccomp_plot_data(sccomp_grade_subtype_df)
+ggsave(plot = sccomp_grade_subtype_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_grade_subtype_all.png"), width = 6, height = 6)
+```
+
+
+## Imm - Grade (Pam50)
+```{r}
+sccomp_grade_pam50 <- readRDS(file.path(PATH, "results/sccomp/imm/grade_pam50.rds"))
+sccomp_grade_pam50_df <- sccomp_grade_pam50 %>% sccomp_prep_data(., param = "grade_binhigh")
+sccomp_grade_pam50_order <- sccomp_grade_pam50_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_grade_pam50_df
+```
+
+```{r}
+sccomp_grade_pam50_plot <- sccomp_plot_data(sccomp_grade_pam50_df, sort_y = )
+ggsave(plot = sccomp_grade_pam50_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_grade_pam50_all.png"), width = 6, height = 6)
+```
+
+```{r}
+sccomp_grade_pam_wang <- readRDS(file.path(PATH, "results/sccomp/imm/wang_2024_pam50_subtype.rds"))
+sccomp_grade_pam_wu_natgen <- readRDS(file.path(PATH, "results/sccomp/imm/wu_natgen_2021_pam50_subtype.rds"))
+sccomp_grade_pam_pal <- readRDS(file.path(PATH, "results/sccomp/imm/pal_2021_pam50_subtype.rds"))
+
+sccomp_grade_pam_wang_plot <- sccomp_grade_pam_wang %>% sccomp_prep_data(., param = "grade_binhigh", order = sccomp_grade_pam50_order) %>% sccomp_plot_data(sort_y = FALSE)
+sccomp_grade_pam_wu_natgen_plot <- sccomp_grade_pam_wu_natgen %>% sccomp_prep_data(., param = "grade_binhigh", order = sccomp_grade_pam50_order) %>% sccomp_plot_data(sort_y = FALSE)
+sccomp_grade_pam_pal_plot <- sccomp_grade_pam_pal %>% sccomp_prep_data(., param = "grade_binhigh", order = sccomp_grade_pam50_order) %>% sccomp_plot_data(sort_y = FALSE)
+```
+
+```{r}
+cowplot::plot_grid(sccomp_grade_pam50_plot + labs(title = "Atlas") + theme(axis.title.x = element_blank(), legend.position = "none"), 
+                   sccomp_grade_pam_pal_plot + labs(title = "Pal")  + theme(axis.title.x = element_blank(), legend.position = "none"), 
+                   sccomp_grade_pam_wang_plot + labs(title = "Wang") + theme(axis.title.x = element_blank(), legend.position = "none"),
+                   sccomp_grade_pam_wu_natgen_plot + labs(title = "Wu Natgen") + theme(axis.title.x = element_blank()),
+                   ncol = 4, nrow = 1)
+ggsave(file.path(PATH, "results/final_figures/combined_imm_grade_pam_sccomp_dotplot.png"), width = 20, height = 6)
+```
+
+## Imm - Subtype (Luma)
+```{r}
+sccomp_luma <- readRDS(file.path(PATH, "results/sccomp/imm/pam_luma.rds"))
+sccomp_luma_df <- sccomp_luma %>% sccomp_prep_data(., param = "pam_lumaTRUE")
+sccomp_luma_order <- sccomp_luma_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_luma_df
+```
+
+```{r}
+sccomp_luma_plot <- sccomp_plot_data(sccomp_luma_df)
+ggsave(plot = sccomp_luma_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_luma_all.png"), width = 6, height = 6)
+```
+
+## Imm - lumb
+```{r}
+sccomp_lumb <- readRDS(file.path(PATH, "results/sccomp/imm/pam_lumb.rds"))
+sccomp_lumb_df <- sccomp_lumb %>% sccomp_prep_data(., param = "pam_lumbTRUE")
+sccomp_lumb_order <- sccomp_lumb_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_lumb_df
+```
+
+```{r}
+sccomp_lumb_plot <- sccomp_plot_data(sccomp_lumb_df)
+ggsave(plot = sccomp_lumb_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_lumb_all.png"), width = 6, height = 6)
+```
+
+## Imm - basal
+```{r}
+sccomp_basal <- readRDS(file.path(PATH, "results/sccomp/imm/pam_basal.rds"))
+sccomp_basal_df <- sccomp_basal %>% sccomp_prep_data(., param = "pam_basalTRUE")
+sccomp_basal_order <- sccomp_basal_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_basal_df
+```
+
+```{r}
+sccomp_basal_plot <- sccomp_plot_data(sccomp_basal_df)
+ggsave(plot = sccomp_basal_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_basal_all.png"), width = 6, height = 6)
+```
+
+## Imm - her2
+```{r}
+sccomp_her2 <- readRDS(file.path(PATH, "results/sccomp/imm/pam_her2.rds"))
+sccomp_her2_df <- sccomp_her2 %>% sccomp_prep_data(., param = "pam_her2TRUE")
+sccomp_her2_order <- sccomp_her2_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_her2_df
+```
+
+```{r}
+sccomp_her2_plot <- sccomp_plot_data(sccomp_her2_df)
+ggsave(plot = sccomp_her2_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_pamher2_all.png"), width = 6, height = 6)
+```
+
+## Imm - norm
+```{r}
+sccomp_norm <- readRDS(file.path(PATH, "results/sccomp/imm/pam_norm.rds"))
+sccomp_norm_df <- sccomp_norm %>% sccomp_prep_data(., param = "pam_normTRUE")
+sccomp_norm_order <- sccomp_norm_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_norm_df
+```
+
+```{r}
+sccomp_norm_plot <- sccomp_plot_data(sccomp_norm_df)
+ggsave(plot = sccomp_norm_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_norm_all.png"), width = 6, height = 6)
+```
+
+## Imm - sub tnbc
+```{r}
+sccomp_tnbc <- readRDS(file.path(PATH, "results/sccomp/imm/sub_tnbc.rds"))
+sccomp_tnbc_df <- sccomp_tnbc %>% sccomp_prep_data(., param = "sub_tnbcTRUE")
+sccomp_tnbc_order <- sccomp_tnbc_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_tnbc_df
+```
+
+```{r}
+sccomp_tnbc_plot <- sccomp_plot_data(sccomp_tnbc_df)
+ggsave(plot = sccomp_tnbc_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_tnbc_all.png"), width = 6, height = 6)
+```
+
+## Imm - sub her2
+```{r}
+sccomp_her2 <- readRDS(file.path(PATH, "results/sccomp/imm/sub_her2.rds"))
+sccomp_her2_df <- sccomp_her2 %>% sccomp_prep_data(., param = "sub_her2TRUE")
+sccomp_her2_order <- sccomp_her2_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_her2_df
+```
+
+```{r}
+sccomp_her2_plot <- sccomp_plot_data(sccomp_her2_df)
+ggsave(plot = sccomp_her2_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_her2_all.png"), width = 6, height = 6)
+```
+
+## Imm - er
+```{r}
+sccomp_er <- readRDS(file.path(PATH, "results/sccomp/imm/sub_er.rds"))
+sccomp_er_df <- sccomp_er %>% sccomp_prep_data(., param = "sub_erTRUE")
+sccomp_er_order <- sccomp_er_df %>% arrange(desc(y)) %>% pull(cluster_annot)
+sccomp_er_df
+```
+
+```{r}
+sccomp_er_plot <- sccomp_plot_data(sccomp_er_df)
+ggsave(plot = sccomp_er_plot, filename = file.path(PATH, "results/final_figures/sccomp_imm_er_all.png"), width = 6, height = 6)
+```
+
