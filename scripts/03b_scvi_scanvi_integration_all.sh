@@ -6,7 +6,7 @@
 #$ -l gpus=1
 #$ -l gpu_c=6.0
 #$ -j y
-#$ -P yaptaz
+#$ -P brcameta
 #$ -pe omp 16
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts

@@ -1,0 +1,111 @@
+---
+title: "Imm Marker Comparison"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(tidyverse)
+library(Seurat)
+library(hypeR)
+library(openxlsx)
+
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+```
+
+# Loading Data
+```{r}
+lym_markers <- readRDS(file.path(PATH, "results/clustering/lymphoid_06_mast_markers.rds"))
+mye_markers <- readRDS(file.path(PATH, "results/clustering/myeloid_06_mast_markers.rds"))
+
+lym_split <- lym_markers %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>%
+  dplyr::group_split() %>%
+  setNames(unique(lym_markers$cluster))
+sorted_names <- as.character(sort(as.numeric(names(lym_split))))
+lym_split <- lym_split[sorted_names]
+mye_split <- mye_markers %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>%
+  dplyr::group_split() %>%
+  setNames(unique(mye_markers$cluster))
+sorted_names <- as.character(sort(as.numeric(names(mye_split))))
+mye_split <- mye_split[sorted_names]
+
+immune_celltypes <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/imm_markers.rds"))
+boroni_sigs <- readRDS(file.path(PATH, "data/signatures/immune/boroni_2024/pan_cancer_myeloid_sigs.rds"))
+vanderleun_sigs <- readRDS(file.path(PATH, "data/signatures/immune/vanderleun_sigs.rds"))
+chu_sigs <- readRDS(file.path(PATH, "data/signatures/immune/chu_2023/chu_sigs.rds"))
+all_imm_sigs <- c(immune_celltypes, boroni_sigs, vanderleun_sigs, chu_sigs)
+all_imm_sigs <- all_imm_sigs[!duplicated(names(all_imm_sigs))]
+```
+
+# Hypergeometric {.tabset}
+```{r}
+lym_split_100 <- lapply(lym_split, function(x) x %>% dplyr::slice(1:100) %>% dplyr::pull(gene))
+mye_split_100 <- lapply(mye_split, function(x) x %>% dplyr::slice(1:100) %>% dplyr::pull(gene))
+```
+
+## Lymphoid
+```{r}
+lym_hyp <- hypeR::hypeR(lym_split_100,genesets=all_imm_sigs, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(lym_hyp,merge=FALSE,top=15)
+```
+
+## Myeloid
+```{r}
+mye_hyp <- hypeR::hypeR(mye_split_100,genesets=all_imm_sigs, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(mye_hyp,merge=FALSE,top=15)
+```
+
+
+# KS {.tabset}
+```{r}
+lym_split_ks <- lapply(lym_split, function(x) x %>% dplyr::pull(gene))
+mye_split_ks <- lapply(mye_split, function(x) x %>% dplyr::pull(gene))
+```
+
+## Lymphoid
+```{r}
+max_fdr <- 0.05
+lym_ks_hall <- hypeR::hypeR(signature=lym_split_ks,genesets=all_imm_sigs,test="kstest",fdr=max_fdr,plotting=TRUE)
+hyp_dots(lym_ks_hall,merge=FALSE,fdr=max_fdr,top=20)
+```
+
+
+## Myeloid 
+```{r}
+max_fdr <- 0.05
+mye_ks_hall <- hypeR::hypeR(signature=mye_split_ks,genesets=all_imm_sigs,test="kstest",fdr=max_fdr,plotting=TRUE)
+hyp_dots(mye_ks_hall,merge=FALSE,fdr=max_fdr,top=20)
+```
+
+# Tables {.tabset}
+
+## Lymphoid 
+```{r}
+hypeR::rctbl_build(lym_hyp)
+```
+
+```{r}
+hypeR::rctbl_build(lym_ks_hall)
+```
+
+## Myeloid
+
+```{r}
+hypeR::rctbl_build(mye_hyp)
+```
+
+```{r}
+hypeR::rctbl_build(mye_ks_hall)
+```

@@ -1,10 +1,11 @@
 #!/bin/bash -l
-#$ -l h_rt=120:00:00
+#$ -l h_rt=9:00:00
 #$ -N mast_epi
 #$ -o mast_epi.log
 #$ -m e
 #$ -j y
-#$ -P apoe-signatures
+#$ -P brcameta
+#$ -t 1-10
 #$ -pe omp 16
 #$ -l mem_per_core=16G
 

@@ -11,10 +11,10 @@ source("util.R")
 DATA_PATH <- file.path(Sys.getenv("CBM"), "otherStudies/scRNAseq/brca")
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas")
 
-# # 1. Reading SCE Data
+# # 1. Reading Seurat Data
 wu_natgen_2021 <- readRDS(file.path(DATA_PATH, "wu_natgen_2021/wu_natgen_seurat.rds"))
-wu_embo_2020 <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
-wu_genomemed_2021 <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
+# wu_embo_2020 <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
+# wu_genomemed_2021 <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
 pal_cancer <- readRDS(file.path(DATA_PATH, "pal_2021/pal_combined_seurat.rds"))
 qian <- readRDS(file.path(DATA_PATH, "qian_2020/qian_seurat.rds"))
 gao <- readRDS(file.path(DATA_PATH, "gao_2021/gao_seurat.rds"))
@@ -25,8 +25,8 @@ wang_combined <- readRDS(file.path(DATA_PATH, "wang_2024/wang_combined_seurat.rd
 
 # Adding Batch Variable
 wu_natgen_2021$batch <- "wu_natgen_2021"
-wu_embo_2020$batch <- "wu_embo_2020"
-wu_genomemed_2021$batch <- "wu_genomemed_2021"
+# wu_embo_2020$batch <- "wu_embo_2020"
+# wu_genomemed_2021$batch <- "wu_genomemed_2021"
 pal_cancer$batch <- "pal_2021"
 qian$batch <- "qian_2020"
 gao$batch <- "gao_2021"
@@ -59,15 +59,18 @@ wang_combined$subtype <- with(wang_combined@meta.data, case_when(donor == "BC389
                                                      donor == "BC428_Tumor" ~ "ER+"))
 
 # Check if it's not working because of rowData
-combined <- list(wu_natgen_2021, wu_embo_2020, wu_genomemed_2021,
-                 pal_cancer, qian, gao, tietscher_combined, bassez_2021,
+combined <- list(wu_natgen_2021, pal_cancer, qian, 
+                 gao, tietscher_combined, bassez_2021,
                  liu, wang_combined)
 
-combined_rownames <- lapply(combined, rownames)
+# Intersection
+# combined_rownames <- lapply(combined, rownames)
+# combined_intersect_rownames <- purrr::reduce(combined_rownames, intersect)
+# combined <- lapply(combined, function(x) x[rownames(x) %in% combined_intersect_rownames,])
 
-combined_intersect_rownames <- purrr::reduce(combined_rownames, intersect)
-
-combined <- lapply(combined, function(x) x[rownames(x) %in% combined_intersect_rownames,])
+# Union 
+# combined_union_rownames <- purrr::reduce(combined_rownames, union)
+# combined <- lapply(combined, function(x) x[rownames(x) %in% combined_union_rownames,])
 
 for(i in seq_along(combined)) {
   combined[[i]]@meta.data <- combined[[i]]@meta.data[,c("celltype_major", "celltype_minor", "singler_pred", 
@@ -77,14 +80,9 @@ for(i in seq_along(combined)) {
 
 #combined_seurat <- purrr::reduce(combined, merge)
 combined_seurat <- scCustomize::Merge_Seurat_List(combined, 
-                                                  add.cell.ids = c("wu_natgen_", "wu_embo_", "wu_genomemed_",
-                                                                   "pal_", "qian_", "gao_",
-                                                                   "tietscher_", "bassez_",
+                                                  add.cell.ids = c("wu_natgen_", "pal_", "qian_", 
+                                                                   "gao_","tietscher_", "bassez_",
                                                                    "liu_", "wang_"))
-
-
-# May not need to remove this. Patient 4 has history of treatment.
-combined_seurat <- combined_seurat[, combined_seurat$donor != "wu_embo_CID4513"]
 
 # # Function to make values unique
 # make_unique <- function(x) {
@@ -112,14 +110,6 @@ pdata_new$celltype_new <- author_new(pdata_new$celltype_major)
 pdata_new$singleR_broad <- singler_broad(pdata_new$singler_pred)
 pdata_new$author_broad <- author_broad(pdata_new$celltype_new)
 
-# Adding more accurate subtype information
-pdata_new$subtype <- with(pdata_new,
-                          case_when(
-                            (batch == "wu_genomemed_2021") & (donor == "wu_genomemed_CID4471") ~ "ER+",
-                            (batch == "wu_genomemed_2021") & (donor == "wu_genomemed_CID44971") ~ "TNBC",
-                            (batch == "wu_genomemed_2021") & (donor == "wu_genomemed_CID4513") ~ "TNBC",
-                            .default = subtype
-                          ))
 pdata_new$subtype_new <- with(pdata_new,
                               case_when(str_detect(subtype, "ER\\+") ~ "ER+",
                                         str_detect(subtype, "HER2") ~ "HER2+",
@@ -189,14 +179,6 @@ pdata_new <- pdata_new %>% rownames_to_column(var="samplename")
 pdata_new <- dplyr::left_join(x = pdata_new, y = combined_supp_data, by = "donor")
 pdata_new$age <- with(pdata_new,
                               case_when(
-                                (donor == "wu_genomemed_CID4471") ~ 55,
-                                (donor == "wu_genomemed_CID44971") ~ 49,
-                                (donor == "wu_genomemed_CID4513") ~ 73,
-                                (donor == "wu_embo_CID44041") ~ 35, #P1
-                                (donor == "wu_embo_CID44971") ~ 49, #P2
-                                (donor == "wu_embo_CID44991") ~ 47, #P3
-                                (donor == "wu_embo_CID4513") ~ 73, #P4
-                                (donor == "wu_embo_CID4515") ~ 67, #P5
                                 (donor == "GSM5457199") ~ 54,
                                 (donor == "GSM5457202") ~ 56,
                                 (donor == "GSM5457205") ~ 68,
@@ -219,14 +201,6 @@ pdata_new$age <- with(pdata_new,
 pdata_new$grade <- pdata_new$grade %>% as.numeric
 pdata_new$grade <- with(pdata_new,
                       case_when(
-                        (donor == "wu_genomemed_CID4471") ~ 2,
-                        (donor == "wu_genomemed_CID44971") ~ 3,
-                        (donor == "wu_genomemed_CID4513") ~ 3,
-                        (donor == "wu_embo_CID44041") ~ 3,
-                        (donor == "wu_embo_CID44971") ~ 3,
-                        (donor == "wu_embo_CID44991") ~ 3,
-                        (donor == "wu_embo_CID4513") ~ 3,
-                        (donor == "wu_embo_CID4515") ~ 3,
                         (donor == "T2") ~ 3,
                         (donor == "T3") ~ 3,
                         (donor == "T6") ~ 3,
@@ -252,11 +226,10 @@ if (!all.equal(rownames(pdata_new), colnames(combined_seurat))) {
 }
 combined_seurat@meta.data <- pdata_new
 
-#saveRDS(combined_seurat, file=file.path(PATH, "data/combined_seurat.rds"))
-saveRDS(combined_seurat_filtered, file.path(PATH, "data/sc/combined_seurat_filtered.rds"))
-combined_seurat_filtered$celltypist_broad <- celltypist_broad(combined_seurat_filtered$celltypist_pred)
-combined_seurat_filtered[["RNA"]] <- as(combined_seurat_filtered[["RNA"]], "Assay")
+saveRDS(combined_seurat, file.path(PATH, "data/sc/combined_seurat.rds"))
+combined_seurat$celltypist_broad <- celltypist_broad(combined_seurat$celltypist_pred)
+combined_seurat[["RNA"]] <- as(combined_seurat[["RNA"]], "Assay")
 
-sceasy::convertFormat(combined_seurat_filtered, from="seurat", to="anndata", 
+sceasy::convertFormat(combined_seurat, from="seurat", to="anndata", 
                       main_layer = "counts", transfer_layers="data",
-                      outFile=file.path(PATH, "data/sc/combined_anndata_pp.h5ad"))
+                      outFile=file.path(PATH, "data/sc/combined_anndata.h5ad"))

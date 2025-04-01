@@ -15,40 +15,42 @@ print("Last run with scvi-tools version:", scvi.__version__)
 DATA_PATH = os.path.join(os.getenv("CBM"), "otherStudies/scRNAseq/brca")
 PATH = os.path.join(os.getenv("MLAB"), "projects/brcameta/brca_atlas")
 
-# adata = sc.read_h5ad(os.path.join(PATH, "data/sc/combined_anndata_pp.h5ad"))
 adata = sc.read_h5ad(os.path.join(PATH, "data/sc/combined_anndata.h5ad"))
 
-# # Adding subtype + cell type category
-# adata.obs['subtype_celltype'] = adata.obs['subtype_new'].astype(str) + "_" + adata.obs['celltypist_pred'].astype(str)
-# print(adata.obs['subtype_celltype'].value_counts())
+# Adding subtype + cell type category
+adata.obs['subtype_celltype'] = adata.obs['subtype_new'].astype(str) + "_" + adata.obs['celltypist_pred'].astype(str)
+print(adata.obs['subtype_celltype'].value_counts())
 
-# # Data Processing
-# adata.raw = adata  # keep full dimension safe
-# adata.layers["counts"] = adata.X # Add raw counts as a layer
-# adata.X = sparse.csr_matrix(adata.layers["counts"])
+# Data Processing
+adata.raw = adata  # keep full dimension safe
+adata.layers["counts"] = adata.X # Add raw counts as a layer
+adata.X = sparse.csr_matrix(adata.layers["counts"])
 
-# # Using variable genes from Seurat
-# assert(sum(~adata.var['var.features'].isna()) == 5000)
-# adata.var = adata.var[['var.features']]
-# adata.var['highly_variable'] = ~adata.var['var.features'].isna()
+# Using variable genes from Seurat
+var_features = pd.read_csv(os.path.join(PATH, "data/var_genes/atlas_5000.csv"))[["x"]]
+adata.var['name'] = adata.var['name'].where(adata.var['name'].isin(var_features['x']), np.nan)
+adata.var = adata.var.rename(columns={'name': 'var.features'})
+assert(sum(~adata.var['var.features'].isna()) == 5000)
+adata.var = adata.var[['var.features']]
+adata.var['highly_variable'] = ~adata.var['var.features'].isna()
 
-# # No integration
-# sc.tl.pca(adata, n_comps=200, use_highly_variable=True)
-# adata.write_h5ad(os.path.join(PATH, "data/sc/combined_anndata.h5ad"))
+# No integration
+sc.tl.pca(adata, n_comps=200, use_highly_variable=True)
+adata.write_h5ad(os.path.join(PATH, "data/sc/combined_anndata.h5ad"))
 
 adata = adata[:, adata.var.highly_variable].copy()
 adata.obsm["Unintegrated"] = adata.obsm["X_pca"]
 
 # Integration with scvi
-# print("Starting scvi")
-# scvi.model.SCVI.setup_anndata(adata, layer="counts", batch_key="batch")
-# vae = scvi.model.SCVI(adata, n_layers=2, n_latent=30, gene_likelihood="nb")
-# vae.train()
-# vae.save(os.path.join(PATH, "data/models/all/scvi_30"), overwrite=True, save_anndata=True)
-# vae = scvi.model.SCVI.load(os.path.join(PATH, "data/models/all/scvi_30"), adata)
-# SCVI_LATENT_KEY = "X_scVI"
-# adata.obsm[SCVI_LATENT_KEY] = vae.get_latent_representation()
-# np.savetxt(os.path.join(PATH, "data/embeddings/all/scvi30.csv"), adata.obsm[SCVI_LATENT_KEY], delimiter=",")
+print("Starting scvi")
+scvi.model.SCVI.setup_anndata(adata, layer="counts", batch_key="batch")
+vae = scvi.model.SCVI(adata, n_layers=2, n_latent=30, gene_likelihood="nb")
+vae.train()
+vae.save(os.path.join(PATH, "data/models/all/scvi_30"), overwrite=True, save_anndata=True)
+vae = scvi.model.SCVI.load(os.path.join(PATH, "data/models/all/scvi_30"), adata)
+SCVI_LATENT_KEY = "X_scVI"
+adata.obsm[SCVI_LATENT_KEY] = vae.get_latent_representation()
+np.savetxt(os.path.join(PATH, "data/embeddings/all/scvi30.csv"), adata.obsm[SCVI_LATENT_KEY], delimiter=",")
 
 # Integration with scanvi (subtype x celltypist)
 print("Starting subtype x celltypist Scanvi")
@@ -85,11 +87,12 @@ adata.obsm[SCANVI_LATENT_KEY] = lvae_subtype.get_latent_representation(adata)
 np.savetxt(os.path.join(PATH, "data/embeddings/all/scanvi_30_celltypist.csv"), adata.obsm[SCANVI_LATENT_KEY], delimiter=",")
 
 # Integration with Scanorama
-# print("Starting Scanorama")
-# idx = adata.obs.sort_values("batch").index
-# adata_new = adata[idx,]
-# adata_new.X = adata_new.X.toarray()
-# sce.pp.scanorama_integrate(adata_new, 'batch', batch_size=2500)
+print("Starting Scanorama")
+idx = adata.obs.sort_values("batch").index
+adata_new = adata[idx,]
+adata_new.X = adata_new.X.toarray()
+sce.pp.scanorama_integrate(adata_new, 'batch', batch_size=2500)
 # adata.write_h5ad(os.path.join(PATH, "data/sc/combined_anndata.h5ad"))
-# print('X_scanorama' in adata.obsm)
-# adata.obsm["Scanorama_MDE"] = scvi.model.utils.mde(adata.obsm["X_scanorama"])
+print('X_scanorama' in adata.obsm)
+SCANVI_LATENT_KEY = "X_scanorama"
+np.savetxt(os.path.join(PATH, "data/embeddings/all/scanorama.csv"), adata.obsm[SCANVI_LATENT_KEY], delimiter=",")

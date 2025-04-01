@@ -2,7 +2,7 @@ library(genefu)
 library(ComplexHeatmap)
 
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
-brca_pb <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_avg.rds"))
+brca_pb <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_pb.rds"))
 
 # Identifying Subtypes
 data(pam50)

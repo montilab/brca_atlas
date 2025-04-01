@@ -193,27 +193,52 @@ saveRDS(liu_sce, file.path(DATA_PATH, "liu_2023/liu_seurat.rds"))
 saveRDS(wang_combined, file.path(DATA_PATH, "wang_2024/wang_combined_seurat.rds"))
 
 # Converting to AnnData
+wu_natgen_2021_sce <- readRDS(file.path(DATA_PATH, "wu_natgen_2021/wu_natgen_seurat.rds"))
+wu_embo_2020_sce <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
+wu_genomemed_2021_sce <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
+pal_cancer <- readRDS(file.path(DATA_PATH, "pal_2021/pal_combined_seurat.rds"))
+qian_sce <- readRDS(file.path(DATA_PATH, "qian_2020/qian_seurat.rds"))
+gao_sce <- readRDS(file.path(DATA_PATH, "gao_2021/gao_seurat.rds"))
+tietscher_combined <- readRDS(file.path(DATA_PATH, "tietscher_2023/tietscher_combined_seurat.rds"))
+bassez_2021 <- readRDS(file.path(DATA_PATH, "bassez_2021/bassez_combined_seurat.rds"))
+xu_combined <- readRDS(file.path(DATA_PATH, "xu_2021/xu_combined_seurat.rds"))
+barkley_combined <- readRDS(file.path(DATA_PATH, "barkley_2022/barkley_combined_seurat.rds"))
+liu_sce <- readRDS(file.path(DATA_PATH, "liu_2023/liu_seurat.rds"))
+wang_combined <- readRDS(file.path(DATA_PATH, "wang_2024/wang_combined_seurat.rds"))
+
 sceasy::convertFormat(wu_natgen_2021_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "wu_natgen_2021/wu_natgen.h5ad"))
 sceasy::convertFormat(wu_embo_2020_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "wu_embo_2020/wu_embo.h5ad"))
 sceasy::convertFormat(wu_genomemed_2021_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed.h5ad"))
 sceasy::convertFormat(pal_cancer, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "pal_2021/pal_combined.h5ad"))
 sceasy::convertFormat(gao_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "gao_2021/gao.h5ad"))
 sceasy::convertFormat(tietscher_combined, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "tietscher_2023/tietscher_combined.h5ad"))
 sceasy::convertFormat(bassez_2021, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "bassez_2021/bassez_combined.h5ad"))
 sceasy::convertFormat(xu_combined, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "xu_2021/xu_combined.h5ad"))
 sceasy::convertFormat(barkley_combined, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "barkley_2022/barkley_combined.h5ad"))
 sceasy::convertFormat(liu_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "liu_2023/liu.h5ad"))
 sceasy::convertFormat(wang_combined, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "wang_2024/wang_combined.h5ad"))
-sceasy::convertFormat(qian, from="seurat", to="anndata",
+sceasy::convertFormat(qian_sce, from="seurat", to="anndata",
+                      main_layer = "counts", transfer_layers="data",
                       outFile=file.path(DATA_PATH, "qian_2020/qian.h5ad"))

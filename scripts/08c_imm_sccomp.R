@@ -43,6 +43,7 @@ df_3 <- imm_metadata %>% dplyr::select(sample_id, cluster_annot, ob_bin, batch, 
 df_4 <- imm_metadata %>% dplyr::select(sample_id, cluster_annot, ob_bin, batch, pam50, age)
 df_5 <- imm_metadata %>% dplyr::select(sample_id, cluster_annot, ir_bin, batch, subtype_new, age)
 df_6 <- imm_metadata %>% dplyr::select(sample_id, cluster_annot, ir_bin, batch, pam50, age)
+df_7 <- imm_metadata %>% dplyr::select(sample_id, cluster_annot, batch, pam50, age)
 
 grade_subtype_samples <- df_1$sample_id[complete.cases(df_1)]
 grade_pam50_samples <- df_2$sample_id[complete.cases(df_2)]
@@ -50,11 +51,12 @@ ir_subtype_samples <- df_3$sample_id[complete.cases(df_3)]
 ir_pam50_samples <- df_4$sample_id[complete.cases(df_4)]
 ob_subtype_samples <- df_5$sample_id[complete.cases(df_5)]
 ob_pam50_samples <- df_6$sample_id[complete.cases(df_6)]
+pam50_age_samples <- df_7$sample_id[complete.cases(df_7)]
 
 # 1. Grade + Subtype Regression
 imm_seurat_nona <- imm_seurat[, grade_subtype_samples]
-print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
-
+# print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
+# 
 # sccomp_result =
 #   imm_seurat_nona |>
 #   sccomp_estimate(
@@ -70,7 +72,51 @@ print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
 # saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_subtype.rds"))
 # print("Done with Grade/Subtype Regression")
 
-# 1. b Subsetting by batch
+for (dataset in unique(imm_seurat_nona$batch)) {
+  imm_seurat_batch <- subset(imm_seurat_nona, subset = (batch == dataset))
+  if (n_distinct(imm_seurat_batch$grade_bin) < 2 | n_distinct(imm_seurat_batch$subtype_new) < 2 | n_distinct(imm_seurat_batch$donor) <=3 ) {
+    print(paste0("Skipping ", dataset))
+    next
+  }
+  print(dataset)
+  print(imm_seurat_batch)
+  print(imm_seurat_batch@meta.data$donor %>% unique %>% length)
+  
+  sccomp_result =
+    imm_seurat_batch |>
+    sccomp_estimate(
+      formula_composition = ~ grade_bin + subtype_new + age,
+      .sample =  donor,
+      .cell_group = cluster_annot,
+      bimodal_mean_variability_association = TRUE,
+      cores = 16
+    ) |>
+    sccomp_remove_outliers(cores = 1) |> # Optional
+    sccomp_test()
+  
+  saveRDS(sccomp_result, file.path(PATH, paste0("results/sccomp/imm/",dataset,"_grade_subtype.rds")))
+}
+# 
+# # 2a. Grade + pam50 Regression
+# imm_seurat_nona <- imm_seurat[, grade_pam50_samples]
+# print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
+# sccomp_result =
+#   imm_seurat_nona |>
+#   sccomp_estimate(
+#     formula_composition = ~ grade_bin + pam50 + age + (1|batch),
+#     # formula_variability = ~ grade_bin + pam50 + age + (1|batch),
+#     .sample =  donor,
+#     .cell_group = cluster_annot,
+#     bimodal_mean_variability_association = TRUE,
+#     cores = 16
+#   ) |>
+#   sccomp_remove_outliers(cores = 1) |> # Optional
+#   sccomp_test()
+# saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_pam50.rds"))
+# # saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_pam50.rds"))
+# print("Done with Grade/pam50 Regression")
+# 
+# # 2b. Subsetting by batch
 # for (dataset in unique(imm_seurat_nona$batch)) {
 #   imm_seurat_batch <- subset(imm_seurat_nona, subset = (batch == dataset))
 #   if (n_distinct(imm_seurat_batch$grade_bin) < 2 | n_distinct(imm_seurat_batch$pam50) < 2 | n_distinct(imm_seurat_batch$donor) <=3 ) {
@@ -92,28 +138,28 @@ print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
 #     ) |>
 #     sccomp_remove_outliers(cores = 1) |> # Optional
 #     sccomp_test()
-# 
+#   
 #   saveRDS(sccomp_result, file.path(PATH, paste0("results/sccomp/imm/",dataset,"_pam50_subtype.rds")))
 # }
-
-# 2. Grade + pam50 Regression
-imm_seurat_nona <- imm_seurat[, grade_pam50_samples]
-print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
-sccomp_result =
-  imm_seurat_nona |>
-  sccomp_estimate(
-    formula_composition = ~ grade_bin + pam50 + age + (1|batch),
-    formula_variability = ~ grade_bin + pam50 + age + (1|batch),
-    .sample =  donor,
-    .cell_group = cluster_annot,
-    bimodal_mean_variability_association = TRUE,
-    cores = 16
-  ) |>
-  sccomp_remove_outliers(cores = 1) |> # Optional
-  sccomp_test()
-saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_pam50_v.rds"))
-# saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_pam50.rds"))
-print("Done with Grade/pam50 Regression")
+# 
+# # 2c. Age + pam50 Regression
+# imm_seurat_nona <- imm_seurat[, pam50_age_samples]
+# print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
+# sccomp_result =
+#   imm_seurat_nona |>
+#   sccomp_estimate(
+#     formula_composition = ~ age + pam50 + (1|batch),
+#     formula_variability = ~ age + pam50 + (1|batch),
+#     .sample =  donor,
+#     .cell_group = cluster_annot,
+#     bimodal_mean_variability_association = TRUE,
+#     cores = 16
+#   ) |>
+#   sccomp_remove_outliers(cores = 1) |> # Optional
+#   sccomp_test()
+# saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/age_pam50_v.rds"))
+# # saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/grade_pam50.rds"))
+# print("Done with Age/pam50 Regression")
 # 
 # # 3. IR/IS + Subtype Regression
 # imm_seurat_nona <- imm_seurat[, ir_subtype_samples]
@@ -184,3 +230,5 @@ print("Done with Grade/pam50 Regression")
 #   sccomp_test()
 # saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/ob_pam50.rds"))
 # print("Done with OB/pam50 Regression")
+# 
+# 

@@ -11,12 +11,12 @@
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts
 # For integration
-mamba create -n scvi python=3.9
-mamba activate scvi
-mamba install -c conda-forge scanpy python-igraph leidenalg
-mamba install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
-mamba install jaxlib=*=*cuda* jax cuda-nvcc -c conda-forge -c nvidia
-mamba install scvi-tools -c conda-forge
+# mamba create -n scvi python=3.9
+# mamba activate scvi
+# mamba install -c conda-forge scanpy python-igraph leidenalg
+# mamba install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+# mamba install jaxlib=*=*cuda* jax cuda-nvcc -c conda-forge -c nvidia
+# mamba install scvi-tools -c conda-forge
 
 
 

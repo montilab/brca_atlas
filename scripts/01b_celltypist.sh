@@ -4,8 +4,8 @@
 #$ -o celltypist.log
 #$ -m e
 #$ -j y
-#$ -t 11-13
-#$ -P findthecause
+#$ -t 1-10
+#$ -P brcameta
 #$ -pe omp 16
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts

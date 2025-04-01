@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#$ -l h_rt=24:00:00
+#$ -l h_rt=4:00:00
 #$ -N epi_scoring_rf
 #$ -o epi_scoring_rf.log
 #$ -m e

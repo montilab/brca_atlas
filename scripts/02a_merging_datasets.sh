@@ -4,7 +4,7 @@
 #$ -o merging.log
 #$ -m e
 #$ -j y
-#$ -P findthecause
+#$ -P brcameta
 #$ -pe omp 28
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts

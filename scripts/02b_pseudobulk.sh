@@ -4,7 +4,7 @@
 #$ -o pseudobulk.log
 #$ -m e
 #$ -j y
-#$ -P gsc-p
+#$ -P brcameta
 #$ -pe omp 16
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts

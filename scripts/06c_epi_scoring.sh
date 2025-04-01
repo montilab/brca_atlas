@@ -1,11 +1,11 @@
 #!/bin/bash -l
-#$ -l h_rt=24:00:00
+#$ -l h_rt=12:00:00
 #$ -N epi_scoring
 #$ -o epi_soring.log
 #$ -m e
 #$ -j y
 #$ -P brcameta
-#$ -pe omp 16
+#$ -pe omp 36
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts
 module load R/4.2.1

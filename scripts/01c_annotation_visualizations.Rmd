@@ -28,8 +28,8 @@ do_save <- FALSE
 # Loading Data
 ```{r}
 wu_natgen_2021 <- readRDS(file.path(DATA_PATH, "wu_natgen_2021/wu_natgen_seurat.rds"))
-wu_embo_2020 <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
-wu_genomemed_2021 <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
+# wu_embo_2020 <- readRDS(file.path(DATA_PATH, "wu_embo_2020/wu_embo_seurat.rds"))
+# wu_genomemed_2021 <- readRDS(file.path(DATA_PATH, "wu_genomemed_2021/wu_genomemed_seurat.rds"))
 pal_cancer <- readRDS(file.path(DATA_PATH, "pal_2021/pal_combined_seurat.rds"))
 qian <- readRDS(file.path(DATA_PATH, "qian_2020/qian_seurat.rds"))
 gao <- readRDS(file.path(DATA_PATH, "gao_2021/gao_seurat.rds"))

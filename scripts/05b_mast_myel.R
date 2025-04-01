@@ -9,16 +9,17 @@ do_save <- FALSE
 # 1. Find All Markers (MAST)
 imm_rpca <- readRDS(file.path(PATH, "data/sc/imm_rpca_subset.rds"))
 
-imm_rpca$imm_broad <- with(imm_rpca@meta.data, if_else(`RNA_snn_res.0.4` %in% c("8","9","22","2",
-                                                                                "3","5","11","1",
-                                                                                "4","12","20","6",
-                                                                                "16","19"),
+imm_rpca$imm_broad <- with(imm_rpca@meta.data, if_else(`RNA_snn_res.0.6` %in% c("1","2","3","6",
+                                                                                "9","5","12","25",
+                                                                                "10","13","15","14",
+                                                                                "28","7", "20", "4",
+                                                                                "24"),
                                                        "Lymphoid", 
                                                        "Myeloid"))
 myeloid_subset <- subset(imm_rpca, 
                           imm_broad == "Myeloid")
 
-Idents(myeloid_subset) <- myeloid_subset$RNA_snn_res.0.4
+Idents(myeloid_subset) <- myeloid_subset$RNA_snn_res.0.6
 markers <- FindAllMarkers(myeloid_subset,
                           assay = "RNA",
                           test.use = "MAST",
@@ -55,4 +56,4 @@ markers <- FindAllMarkers(myeloid_subset,
 # # nice way to flatten list into a single DF
 # dplyr::bind_rows(marker_results)
 saveRDS(markers, file.path(PATH,
-                           paste0("results/clustering/myeloid_04_mast_markers.rds")))
+                           paste0("results/clustering/myeloid_06_mast_markers.rds")))

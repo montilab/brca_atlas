@@ -10,17 +10,21 @@ library(fastDummies)
 registerDoParallel(cores = 8)
 
 epi_data <- readRDS(file.path(PATH, "results/annotation/epi/scores_cell.rds"))
-epi_data <- epi_data %>% dplyr::filter(Cluster %in% 0:14)
+epi_data <- epi_data %>% dplyr::filter(Cluster %in% setdiff(0:22, c(9,19,12,21,7,10,11)))
 epi_data$Cluster <- droplevels(epi_data$Cluster)
-epi_data$Cytotrace_Class <- droplevels(epi_data$Cytotrace_Class)
+epi_data$Cytotrace_Class <- NULL
 epi_data$Subtype <- NULL
-epi_data$`Cell id` <- NULL
+epi_data$`Cell Id` <- NULL
+epi_data$InferCNV_Score <- NULL
 epi_data$InferCNV_Malig <- epi_data$InferCNV_Malig*1
-epi_data <- dummy_cols(epi_data, select_columns = c("Pam50", "Cytotrace_Class"), 
+epi_data <- dummy_cols(epi_data, select_columns = c("Pam50"), 
                        remove_selected_columns = TRUE)
-colnames(epi_data) <- str_replace_all(colnames(epi_data), "Cytotrace_Class_", replacement = "Cyto. ")
+colnames(epi_data)[9:19] <- paste0(colnames(epi_data)[9:19], " (HBCA)")
+colnames(epi_data)[20:69] <- paste0(colnames(epi_data)[20:69], " (Hall.)")
 colnames(epi_data) <- str_replace_all(colnames(epi_data), "Cytotrace_Score", replacement = "Cyto. Score")
-colnames(epi_data) <- str_replace_all(colnames(epi_data), "Pam50_", replacement = "Pam50 ")
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Pam50_", replacement = "")
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Hallmark ", replacement = "")
+colnames(epi_data)[70:74] <- paste0(colnames(epi_data)[70:74], " (PAM50)")
 
 
 # Random Forest needs complete data
@@ -33,7 +37,7 @@ rf_data_clusters <- foreach(cluster = unique(epi_data$Cluster), .combine = c) %d
   results_imp <- results_all[["imps"]]
   results_acc <- results_all[["acc"]]
   results_imp_feats <- results_imp %>% dplyr::slice(1:5) %>% pull(feature)
-  
+
   cluster_result <- list()
   cluster_result[[as.character(cluster)]] <- list(
     all = list(
@@ -41,7 +45,7 @@ rf_data_clusters <- foreach(cluster = unique(epi_data$Cluster), .combine = c) %d
       acc = results_acc
     )
   )
-  
+
   print(paste0("Done with ", cluster))
   cluster_result
 }
@@ -49,13 +53,8 @@ rf_data_clusters <- foreach(cluster = unique(epi_data$Cluster), .combine = c) %d
 saveRDS(rf_data_clusters, file.path(PATH, "results/annotation/epi/rf_all_clusters.rds"))
 
 # 1. Random Forest for level 3 clusters
-epi_data$k2_meta_3 <- with(epi_data, case_when(Cluster %in% c(10,4) ~ "10_4",
-                                               Cluster %in% c(1,7) ~ "1_7",
-                                               Cluster %in% c(3,8,9) ~ "3_8_9",
-                                               Cluster %in% c(2,6) ~ "2_6",
-                                               Cluster %in% c(11,12) ~ "11_12",
-                                               Cluster %in% c(0,14) ~ "0_14",
-                                               .default = Cluster))
+epi_data$k2_meta_3 <- with(epi_data, case_when(Cluster %in% c(1,22,17) ~ "1_17",
+                                               .default = as.character(Cluster)))
 table(epi_data$k2_meta_3)
 
 # Get feature importances for each group
@@ -83,10 +82,11 @@ saveRDS(rf_data_clusters, file.path(PATH, "results/annotation/epi/rf_k2_3_cluste
 
 # 1. Random Forest for level 2 clusters
 epi_data <- epi_data %>% dplyr::select(-k2_meta_3)
-epi_data$k2_meta_2 <- with(epi_data, case_when(Cluster %in% c(10,4,1,7) ~ "10_4_1_7",
-                                               Cluster %in% c(3,8,9,2,6) ~ "3_8_9_2_6",
-                                               Cluster %in% c(11,12,0,14) ~ "11_12_0_14",
-                                               .default = Cluster))
+epi_data$k2_meta_2 <- with(epi_data, case_when(Cluster %in% c(13,2) ~ "13_2",
+                                               Cluster %in% c(15,18,3,16) ~ "15_16",
+                                               Cluster %in% c(1,22,17,6,5) ~ "1_5",
+                                               Cluster %in% c(0,14,20) ~ "0_20",
+                                               .default = as.character(Cluster)))
 
 table(epi_data$k2_meta_2)
 
@@ -115,9 +115,9 @@ saveRDS(rf_data_clusters, file.path(PATH, "results/annotation/epi/rf_k2_2_cluste
 
 # 4. Random Forest Level 1 clusters
 epi_data <- epi_data %>% dplyr::select(-k2_meta_2)
-epi_data$k2_meta_1 <- with(epi_data, case_when(Cluster %in% c(10,4,1,7,5) ~ "10_4_1_7_5",
-                                               Cluster %in% c(3,8,9,2,6,13,11,12,0,14) ~ "3_8_9_2_6_13_11_12_0_14",
-                                               .default = Cluster))
+epi_data$k2_meta_1 <- with(epi_data, case_when(Cluster %in% c(13,2,4) ~ "13_4",
+                                               Cluster %in% c(0,14,20,1,22,17,6,5,8,15,18,3,16) ~ "0_16",
+                                               .default = as.character(Cluster)))
 table(epi_data$k2_meta_1)
 
 # Get feature importances for each group

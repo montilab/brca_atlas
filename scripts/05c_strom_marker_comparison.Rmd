@@ -1,0 +1,67 @@
+---
+title: "Strom Marker Comparison"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(tidyverse)
+library(Seurat)
+library(hypeR)
+library(openxlsx)
+
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+```
+
+# Loading Data
+```{r}
+strom_markers <- readRDS(file.path(PATH, "results/clustering/strom_04_mast_markers.rds"))
+strom_split <- strom_markers %>%
+  dplyr::group_by(cluster) %>%
+  dplyr::arrange(p_val_adj, desc(avg_log2FC)) %>%
+  dplyr::group_split() %>%
+  setNames(unique(strom_markers$cluster))
+sorted_names <- as.character(sort(as.numeric(names(strom_split))))
+strom_split <- strom_split[sorted_names]
+pan_cancer_markers <- readRDS(file.path(PATH, "data/signatures/stromal/ye_2024/pan_cancer_stromal_sigs.rds"))
+```
+
+# Hypergeometric {.tabset}
+```{r}
+strom_split_100 <- lapply(strom_split, function(x) x %>% dplyr::slice(1:100) %>% dplyr::pull(gene))
+```
+
+```{r}
+hall_hyp <- hypeR::hypeR(strom_split_100,genesets=pan_cancer_markers, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(hall_hyp,merge=FALSE,top=15)
+```
+
+
+# KS
+```{r}
+strom_split_ks <- lapply(strom_split, function(x) x %>% dplyr::pull(gene))
+```
+
+```{r}
+max_fdr <- 0.05
+ks_hall <- hypeR::hypeR(signature=strom_split_ks,genesets=pan_cancer_markers,test="kstest",fdr=max_fdr,plotting=TRUE)
+hyp_dots(ks_hall,merge=FALSE,fdr=max_fdr,top=20)
+```
+
+# Tables
+
+```{r}
+hypeR::rctbl_build(hall_hyp)
+```
+
+```{r}
+hypeR::rctbl_build(ks_hall)
+```

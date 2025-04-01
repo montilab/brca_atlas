@@ -4,10 +4,9 @@
 #$ -o mast_lymph.log
 #$ -m e
 #$ -j y
-#$ -P montilab-p
-#$ -hard -l buyin=TRUE
-#$ -pe omp 16
-#$ -l mem_per_core=16G
+#$ -P brcameta
+#$ -pe omp 28
+#$ -l mem_per_core=18G
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts
 module load R/4.2.1

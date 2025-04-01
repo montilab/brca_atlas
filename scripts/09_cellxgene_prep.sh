@@ -5,8 +5,10 @@
 #$ -m e
 #$ -j y
 #$ -P brcameta
-#$ -pe omp 16
+#$ -pe omp 28
 
 cd /rprojectnb2/montilab-p/projects/brcameta/brca_atlas/scripts
 module load R/4.2.1
+module load libcurl
+export LD_PRELOAD="${SCC_LIBCURL_LIB}/libcurl.so"
 Rscript --verbose 09_cellxgene_prep.R

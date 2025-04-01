@@ -15,41 +15,41 @@ PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
 epi_rpca <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds")) 
 
 # 1. Scoring with Hallmark/Reactome
-# hallmark_genesets <- hypeR::msigdb_download(species="Homo sapiens", category="H")
-# reactome_genesets <- hypeR::enrichr_download("Reactome_2022" )
-# 
-#K2_sce <- as.SingleCellExperiment(epi_rpca)
-# cells_auc_reactome <- AUCell_run(K2_sce, reactome_genesets)
-# saveRDS(cells_auc_reactome, file.path(PATH, "data/auc/epi_reactome.rds"))
-# 
-# cells_auc_hallmark <- AUCell_run(K2_sce, hallmark_genesets)
-# saveRDS(cells_auc_hallmark, file.path(PATH, "data/auc/epi_hallmark.rds"))
-#
+hallmark_genesets <- hypeR::msigdb_download(species="Homo sapiens", category="H")
+reactome_genesets <- hypeR::enrichr_download("Reactome_2022" )
+
+K2_sce <- as.SingleCellExperiment(epi_rpca)
+cells_auc_reactome <- AUCell_run(K2_sce, reactome_genesets)
+saveRDS(cells_auc_reactome, file.path(PATH, "data/auc/epi_reactome.rds"))
+
+cells_auc_hallmark <- AUCell_run(K2_sce, hallmark_genesets)
+saveRDS(cells_auc_hallmark, file.path(PATH, "data/auc/epi_hallmark.rds"))
+
 # 2. Scoring with Proliferation/Inflammation
-# prolif <- read.delim(file.path(PATH, "data/signatures/K2_TILS/PMID25848820_inflammationBreastCancer.txt"), header = FALSE)
-# inflam <- read.delim(file.path(PATH, "data/signatures/K2_TILS/PMID22028643_proliferationBreastCancer.txt"), header = FALSE)
-# cells_auc_prolif_inflam <- AUCell_run(K2_sce, list(proliferation = prolif$V1, inflammation = inflam$V1))
-# saveRDS(cells_auc_prolif_inflam, file.path(PATH, "data/auc/epi_prolif_inflam.rds"))
-#
+prolif <- read.delim(file.path(PATH, "data/signatures/K2_TILS/PMID25848820_inflammationBreastCancer.txt"), header = FALSE)
+inflam <- read.delim(file.path(PATH, "data/signatures/K2_TILS/PMID22028643_proliferationBreastCancer.txt"), header = FALSE)
+cells_auc_prolif_inflam <- AUCell_run(K2_sce, list(proliferation = prolif$V1, inflammation = inflam$V1))
+saveRDS(cells_auc_prolif_inflam, file.path(PATH, "data/auc/epi_prolif_inflam.rds"))
+
 # 3. Scoring with EMT
-# emt_tan_sigs <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/tan_2014/tan_sigs.rds"))
-# emt_winkler_sigs <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/winkler_2024/emp_sigs.rds"))
-# cells_auc_emt <- AUCell_run(K2_sce, c(emt_tan_sigs, emt_winkler_sigs))
-# saveRDS(cells_auc_emt, file.path(PATH, "data/auc/epi_emt.rds"))
-#
+emt_tan_sigs <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/tan_2014/tan_sigs.rds"))
+emt_winkler_sigs <- readRDS(file.path(PATH, "data/signatures/cancer_epithelial/winkler_2024/emp_sigs.rds"))
+cells_auc_emt <- AUCell_run(K2_sce, c(emt_tan_sigs, emt_winkler_sigs))
+saveRDS(cells_auc_emt, file.path(PATH, "data/auc/epi_emt.rds"))
+
 # 4. Scoring with Healthy Breast Markers
-# epi_all <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/all_markers.rds"))
-# cells_auc_hbca <- AUCell_run(K2_sce, epi_all)
-# saveRDS(cells_auc_hbca, file.path(PATH, "data/auc/epi_hbca.rds"))
-#
+epi_all <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/all_markers.rds"))
+cells_auc_hbca <- AUCell_run(K2_sce, epi_all)
+saveRDS(cells_auc_hbca, file.path(PATH, "data/auc/epi_hbca.rds"))
+
 # 5. Scoring with cytotrace
-# expression_matrix <- GetAssayData(epi_rpca, slot = "counts")
-# 
-# cytotrace2_result <- cytotrace2(expression_matrix, 
-#                                 species = "human",
-#                                 ncores = 16)
-# 
-# saveRDS(cytotrace2_result, file.path(PATH, "data/cytotrace/cytotrace_results.rds"))
+expression_matrix <- GetAssayData(epi_rpca, slot = "counts")
+
+cytotrace2_result <- cytotrace2(expression_matrix,
+                                species = "human",
+                                ncores = 16)
+
+saveRDS(cytotrace2_result, file.path(PATH, "data/cytotrace/cytotrace_results.rds"))
 
 # 6. Adding scores to a spreadsheet
 combined_malig_data <- readRDS(file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
@@ -77,9 +77,9 @@ epi_metadata <- dplyr::left_join(x = epi_metadata, y = pam50, by = "donor")
 
 all_df <- list(epi_metadata, combined_malig_data, cytotrace_data, emp_df, hbca_df, hallmark_df)
 merged_df <- Reduce(function(x, y) dplyr::left_join(x, y, by = "cell_id"), all_df)
-merged_df_filtered <- merged_df[, c(1,14,15,16,23,30,31,33:35,39:102)]
-colnames(merged_df_filtered) <- clean_hallmark_names(colnames(merged_df_filtered))
-colnames(merged_df_filtered)[c(2,5,7,8,9,10,11,12,13)] <- c("Subtype","Cluster","InferCNV_Score", 
+merged_df_filtered <- merged_df[, c(1,14,15,16,21,29,30,32,33:34,38:101)]
+colnames(merged_df_filtered) <- hypeR::clean_genesets(colnames(merged_df_filtered))
+colnames(merged_df_filtered)[c(2,5,7,8,9,10,11,12,13)] <- c("Subtype","Cluster","InferCNV_Score",
                                                             "InferCNV_Malig", "Cytotrace_Score", "Cytotrace_Class",
                                                             "Epi. State", "Int. State", "Mes. State")
 saveRDS(merged_df_filtered, file = file.path(PATH, "results/annotation/epi/scores_cell.rds"))
@@ -87,57 +87,57 @@ saveRDS(merged_df_filtered, file = file.path(PATH, "results/annotation/epi/score
 # Fisher Test
 grade_freq <- epi_metadata$grade %>% table %>% prop.table
 subtype_freq <- epi_metadata$subtype_new %>% table %>% prop.table
-# 
+#
 # # Function to perform Fisher's test on a single row
 # row_fisher_test <- function(row, alternative = "greater") {
 #   # Create 2x2 matrix from the row
 #   mat <- matrix(as.numeric(row), nrow = 2, byrow = TRUE)
-#   
+#
 #   # Perform Fisher's exact test
 #   result <- fisher.test(mat, alternative = alternative)
-#   
+#
 #   # Return p-value (you can modify this to return other statistics if needed)
-#   return(list(odds_ratio = result$estimate %>% unname, 
+#   return(list(odds_ratio = result$estimate %>% unname,
 #               p_value = result$p.value))
 # }
-# 
-# grade_count_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.2, grade) %>% dplyr::summarize(Count = n())
-# grade_total_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.2) %>% dplyr::summarize(Total = n())
-# grade_merged_df <- dplyr::left_join(grade_count_df, grade_total_df, by = c("RNA_snn_res.0.2"))
+#
+# grade_count_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.1, grade) %>% dplyr::summarize(Count = n())
+# grade_total_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.1) %>% dplyr::summarize(Total = n())
+# grade_merged_df <- dplyr::left_join(grade_count_df, grade_total_df, by = c("RNA_snn_res.0.1"))
 # grade_merged_df <- grade_merged_df %>% drop_na()
 # grade_merged_df <- grade_merged_df %>% dplyr::mutate(pop_count = case_when(grade == 1 ~ grade_freq[[1]],
 #                                                                            grade == 2 ~ grade_freq[[2]],
 #                                                                            grade == 3 ~ grade_freq[[3]]),
 #                                                      pop_total = sum(grade_freq))
-# 
+#
 # fisher_grade_values <- apply(grade_merged_df[,3:6], 1, row_fisher_test)
 # fisher_grade_values <- as.data.frame(rbindlist(fisher_grade_values))
 # grade_merged_df <- cbind(grade_merged_df, fisher_grade_values)
-# grade_merged_df <- grade_merged_df %>% 
-#   dplyr::select("RNA_snn_res.0.2", "grade", "odds_ratio") %>% 
+# grade_merged_df <- grade_merged_df %>%
+#   dplyr::select("RNA_snn_res.0.1", "grade", "odds_ratio") %>%
 #   tidyr::pivot_wider(names_from = "grade",
 #                      values_from = "odds_ratio")
-# 
-# 
-# subtype_count_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.2, subtype_new) %>% dplyr::summarize(Count = n())
-# subtype_total_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.2) %>% dplyr::summarize(Total = n())
-# subtype_merged_df <- dplyr::left_join(subtype_count_df, subtype_total_df, by = c("RNA_snn_res.0.2"))
+#
+#
+# subtype_count_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.1, subtype_new) %>% dplyr::summarize(Count = n())
+# subtype_total_df <- merged_df %>% dplyr::group_by(RNA_snn_res.0.1) %>% dplyr::summarize(Total = n())
+# subtype_merged_df <- dplyr::left_join(subtype_count_df, subtype_total_df, by = c("RNA_snn_res.0.1"))
 # subtype_merged_df <- subtype_merged_df %>% dplyr::filter(subtype_new != "Unassigned")
 # subtype_merged_df <- subtype_merged_df %>% dplyr::mutate(pop_count = case_when(subtype_new == "ER+" ~ subtype_freq[["ER+"]],
 #                                                                                subtype_new == "HER2+" ~ subtype_freq[["HER2+"]],
 #                                                                                subtype_new == "TNBC" ~ subtype_freq[["TNBC"]]),
 #                                                          pop_total = sum(subtype_freq))
-# 
+#
 # fisher_subtype_values <- apply(subtype_merged_df[,3:6], 1, row_fisher_test)
 # fisher_subtype_values <- as.data.frame(rbindlist(fisher_subtype_values))
 # subtype_merged_df <- cbind(subtype_merged_df, fisher_subtype_values)
-# subtype_merged_df <- subtype_merged_df %>% 
-#   dplyr::select("RNA_snn_res.0.2", "subtype_new", "odds_ratio") %>% 
+# subtype_merged_df <- subtype_merged_df %>%
+#   dplyr::select("RNA_snn_res.0.1", "subtype_new", "odds_ratio") %>%
 #   tidyr::pivot_wider(names_from = "subtype_new",
 #                      values_from = "odds_ratio")
 
 metadata_df <- merged_df %>%
-  dplyr::group_by(RNA_snn_res.0.2) %>%
+  dplyr::group_by(RNA_snn_res.0.1) %>%
   dplyr::summarize(prop_grade1 = mean(grade == 1, na.rm = TRUE),
                    prop_grade2 = mean(grade == 2, na.rm = TRUE),
                    prop_grade3 = mean(grade == 3, na.rm = TRUE),
@@ -146,17 +146,12 @@ metadata_df <- merged_df %>%
                    prop_tnbc = mean(subtype_new == "TNBC", na.rm = TRUE),
                    mean_age = mean(age, na.rm = TRUE))
 
-# grouped_dfs <- list(metadata_df, subtype_merged_df, grade_merged_df)
-# grouped_dfs <- list(merged_df, metadata_df)
-# metadata_df <- Reduce(function(x, y) dplyr::left_join(x, y, by = "RNA_snn_res.0.2"), grouped_dfs)
-
-
-cyto_malig_df <- merged_df %>% dplyr::select(RNA_snn_res.0.2, 
-                                             score, outside_norm_90, 
-                                             CytoTRACE2_Score, CytoTRACE2_Potency, 
+cyto_malig_df <- merged_df %>% dplyr::select(RNA_snn_res.0.1,
+                                             score, outside_norm_90,
+                                             CytoTRACE2_Score, CytoTRACE2_Potency,
                                              epi_breast, int_breast, mes_breast)
-cyto_malig_df <- cyto_malig_df %>% 
-  dplyr::group_by(RNA_snn_res.0.2) %>% 
+cyto_malig_df <- cyto_malig_df %>%
+  dplyr::group_by(RNA_snn_res.0.1) %>%
   dplyr::summarise(prop_malignant = mean(outside_norm_90, na.rm = TRUE),
                    mean_cytotrace = mean(CytoTRACE2_Score),
                    prop_diff = mean(CytoTRACE2_Potency == "Differentiated"),
@@ -167,15 +162,15 @@ cyto_malig_df <- cyto_malig_df %>%
                    mean_epi_state = mean(epi_breast),
                    mean_int_state = mean(int_breast),
                    mean_mes_state = mean(mes_breast))
-hbca_hallmark_df <- merged_df[,c(23, 41:101)]
-hbca_hallmark_df <- hbca_hallmark_df %>% 
-  dplyr::group_by(RNA_snn_res.0.2) %>%
+hbca_hallmark_df <- merged_df[,c(21, 41:101)]
+hbca_hallmark_df <- hbca_hallmark_df %>%
+  dplyr::group_by(RNA_snn_res.0.1) %>%
   dplyr::summarise_all(mean)
 
 grouped_dfs <- list(metadata_df, cyto_malig_df, hbca_hallmark_df)
-combined_grouped_df <- Reduce(function(x, y) dplyr::left_join(x, y, by = "RNA_snn_res.0.2"), grouped_dfs)
-combined_grouped_df$RNA_snn_res.0.2 <- as.numeric(as.character(combined_grouped_df$RNA_snn_res.0.2))
-combined_grouped_df <- combined_grouped_df %>% dplyr::arrange(RNA_snn_res.0.2)
+combined_grouped_df <- Reduce(function(x, y) dplyr::left_join(x, y, by = "RNA_snn_res.0.1"), grouped_dfs)
+combined_grouped_df$RNA_snn_res.0.1 <- as.numeric(as.character(combined_grouped_df$RNA_snn_res.0.1))
+combined_grouped_df <- combined_grouped_df %>% dplyr::arrange(RNA_snn_res.0.1)
 
 # Create a new workbook
 wb <- createWorkbook()
@@ -185,24 +180,24 @@ writeData(wb, sheet = "Cluster Scores", x = combined_grouped_df)
 
 # Save the workbook
 saveWorkbook(wb, file.path(PATH, "results/annotation/epi_scores.xlsx"), overwrite = TRUE)
-saveRDS(combined_grouped_df, file.path(PATH, "results/annotation/epi_scores.rds"))
+saveRDS(combined_grouped_df, file.path(PATH, "results/annotation/epi/epi_scores.rds"))
 
 # 1. Epi Scores Heatmap
 # Complex Heatmaps of scores
-heatmap_dat <- combined_grouped_df %>% 
+heatmap_dat <- combined_grouped_df %>%
   dplyr::select(-c(prop_pluri, prop_toti)) %>%
-  tibble::column_to_rownames(var = "RNA_snn_res.0.2")
+  tibble::column_to_rownames(var = "RNA_snn_res.0.1")
 heatmap_dat[,-c(1:8, 10:12)] <- scale(heatmap_dat[,-c(1:8, 10:12)])
 heatmap_dat <- heatmap_dat %>% as.matrix %>% t
 
 heatmap_labels <- rownames(heatmap_dat)
-heatmap_labels <- clean_hallmark_names(heatmap_labels)
-heatmap_labels[1:15] <- c("Grade 1 (6%)", 
+heatmap_labels <- clean_genesets(heatmap_labels)
+heatmap_labels[1:15] <- c("Grade 1 (7%)",
                          "Grade 2 (25%)",
-                         "Grade 3 (67%)",
-                         "ER+ (56%)",
-                         "HER2+ (10%)",
-                         "TNBC (28%)",
+                         "Grade 3 (68%)",
+                         "ER+ (59%)",
+                         "HER2+ (11%)",
+                         "TNBC (25%)",
                          "Mean Age",
                          "Prop. Malignant",
                         "Mean Cytotrace",
@@ -210,16 +205,16 @@ heatmap_labels[1:15] <- c("Grade 1 (6%)",
                         "Prop. Uni",
                         "Prop. Oligo",
                         "Mean Epi. State",
-                        "Mean Int. State", 
+                        "Mean Int. State",
                         "Mean Mes. State")
 rownames(heatmap_dat) <- heatmap_labels
 
 # Define two color schemes
 col_scores <- colorRamp2(c(-3, 0, 3), c("blue", "white", "red"))
 col_props <- colorRamp2(c(0, 0.5, 1),  c("#E5F5E0", "#A1D99B", "#31A354"))
-col_age <- colorRamp2(c(min(heatmap_dat["Mean Age",]), 
-                        median(heatmap_dat["Mean Age",]), 
-                        max(heatmap_dat["Mean Age",])), c(c("#FEE6CE", "#FDAE6B", "#E6550D")))
+col_age <- colorRamp2(c(min(heatmap_dat["Mean Age",], na.rm = TRUE),
+                        median(heatmap_dat["Mean Age",], na.rm = TRUE),
+                        max(heatmap_dat["Mean Age",], na.rm = TRUE)), c(c("#FEE6CE", "#FDAE6B", "#E6550D")))
 
 ht <- Heatmap(heatmap_dat,
         cluster_rows = FALSE,
@@ -234,16 +229,16 @@ ht <- Heatmap(heatmap_dat,
           }
           grid.text(sprintf("%.1f", heatmap_dat[i, j]), x, y, gp = gpar(fontsize = 3))
           },
-        row_split = c(rep("Patient", 7), 
-                      "InferCNV", 
-                      rep("Cytotrace", 4), 
+        row_split = c(rep("Patient", 7),
+                      "InferCNV",
+                      rep("Cytotrace", 4),
                       rep("EMP", 3),
                       rep("HBCA", 11),
                       rep("Hallmark", 50)),
         row_gap = unit(2, "mm"),
         row_title_gp = gpar(fontsize = 5),
         row_names_gp = gpar(fontsize = 5),
-        column_names_gp = gpar(fontsize = 5), 
+        column_names_gp = gpar(fontsize = 5),
         column_names_rot = 45,
         heatmap_legend_param = list(
           labels_gp = gpar(fontsize = 5),  # Adjust size of legend labels
@@ -263,17 +258,15 @@ png(file.path(PATH, "results/annotation/epi_scores_heatmap.png"), width=1500, he
 draw(ht, heatmap_legend_list = list(lgd_score, lgd_prop, lgd_age))
 dev.off()
 
-# 2. Subset + Clustered Heatmap
+# 2. Clustered Heatmap
 minmax_scale <- function(x) {
   (x - min(x)) / (max(x) - min(x))
 }
 # Heatmap without last four clusters
-heatmap_dat <- combined_grouped_df %>% 
+heatmap_dat <- combined_grouped_df %>%
   dplyr::select(-c(prop_pluri, prop_toti)) %>%
-  tibble::column_to_rownames(var = "RNA_snn_res.0.2")
-heatmap_dat <- heatmap_dat[-c(16:19),]
+  tibble::column_to_rownames(var = "RNA_snn_res.0.1")
 heatmap_dat[,-c(1:8, 10:12)] <- apply(heatmap_dat[,-c(1:8, 10:12)], 2, minmax_scale)
-#heatmap_dat[,-c(1:8, 10:12)] <- scale(heatmap_dat[,-c(1:8, 10:12)])
 
 heatmap_dat <- heatmap_dat %>% as.matrix %>% t
 
@@ -284,7 +277,7 @@ heatmap_labels[27:76] <- str_to_sentence(heatmap_labels[27:76])
 heatmap_labels[27:76] <- str_replace(heatmap_labels[27:76], "Pi3k" , "PI3K") %>%
   str_replace(., "Wnt", "WNT") %>%
   str_replace(., "Uv", "UV") %>%
-  str_replace(., "Tgf beta", "TGF Beta") %>% 
+  str_replace(., "Tgf beta", "TGF Beta") %>%
   str_replace(., "Tnfa", "TNFA") %>%
   str_replace(., "akt", "Akt") %>%
   str_replace(., "Mtorc1", "MTORC1") %>%
@@ -296,7 +289,7 @@ heatmap_labels[27:76] <- str_replace(heatmap_labels[27:76], "Pi3k" , "PI3K") %>%
   str_replace(., "E2f", "E2F") %>%
   str_replace(., "Dna", "DNA") %>%
   str_replace(., "Kras", "KRAS")
-heatmap_labels[1:15] <- c("Grade 1 (6%)", 
+heatmap_labels[1:15] <- c("Grade 1 (6%)",
                           "Grade 2 (25%)",
                           "Grade 3 (67%)",
                           "ER+ (56%)",
@@ -309,18 +302,18 @@ heatmap_labels[1:15] <- c("Grade 1 (6%)",
                           "Prop. Uni",
                           "Prop. Oligo",
                           "Mean Epi. State",
-                          "Mean Int. State", 
+                          "Mean Int. State",
                           "Mean Mes. State")
 rownames(heatmap_dat) <- heatmap_labels
-saveRDS(heatmap_dat, file = file.path(PATH, "results/annotation/epi/heatmap_dat_subset.rds"))
+saveRDS(heatmap_dat, file = file.path(PATH, "results/annotation/epi/heatmap_dat.rds"))
 
 # Define two color schemes
 # col_scores <- colorRamp2(c(-3, 0, 3), c("blue", "white", "red"))
 col_scores <- colorRamp2(c(0, 1), c("white", "red"))
 col_props <- colorRamp2(c(0, 0.5, 1),  c("#E5F5E0", "#A1D99B", "#31A354"))
-col_age <- colorRamp2(c(min(heatmap_dat["Mean Age",]), 
-                        median(heatmap_dat["Mean Age",]), 
-                        max(heatmap_dat["Mean Age",])), c(c("#FEE6CE", "#FDAE6B", "#E6550D")))
+col_age <- colorRamp2(c(min(heatmap_dat["Mean Age",], na.rm = TRUE),
+                        median(heatmap_dat["Mean Age",], na.rm = TRUE),
+                        max(heatmap_dat["Mean Age",], na.rm = TRUE)), c(c("#FEE6CE", "#FDAE6B", "#E6550D")))
 
 ht <- Heatmap(heatmap_dat,
               cluster_rows = FALSE,
@@ -335,16 +328,16 @@ ht <- Heatmap(heatmap_dat,
                 }
                 grid.text(sprintf("%.1f", heatmap_dat[i, j]), x, y, gp = gpar(fontsize = 3))
               },
-              row_split = c(rep("Patient", 7), 
-                            "InferCNV", 
-                            rep("Cytotrace", 4), 
+              row_split = c(rep("Patient", 7),
+                            "InferCNV",
+                            rep("Cytotrace", 4),
                             rep("EMP", 3),
                             rep("HBCA", 11),
                             rep("Hallmark", 50)),
               row_gap = unit(2, "mm"),
               row_title_gp = gpar(fontsize = 5),
               row_names_gp = gpar(fontsize = 5),
-              column_names_gp = gpar(fontsize = 5), 
+              column_names_gp = gpar(fontsize = 5),
               column_names_rot = 45,
               heatmap_legend_param = list(
                 labels_gp = gpar(fontsize = 5),  # Adjust size of legend labels
@@ -360,6 +353,6 @@ lgd_age <- Legend(col_fun = col_age, title = "Age")
 
 # Draw the heatmap with custom legends
 
-png(file.path(PATH, "results/final_figures/epi/epi_scores_subset_clustered_heatmap_minmax_white.png"), width=1500, height=2000, res = 300)
+png(file.path(PATH, "results/final_figures/epi/epi_scores_clustered_heatmap_minmax_white.png"), width=1500, height=2000, res = 300)
 draw(ht, heatmap_legend_list = list(lgd_score, lgd_prop, lgd_age))
 dev.off()

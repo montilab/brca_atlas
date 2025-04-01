@@ -7,8 +7,8 @@ wu_natgen_method <- TRUE
 
 # Loading infercnv data
 wu_natgen_2021 <- readRDS(file.path(PATH, "data/infercnv/wu_natgen_2021/run.final.infercnv_obj"))
-wu_embo_2020 <- readRDS(file.path(PATH, "data/infercnv/wu_embo_2020/run.final.infercnv_obj"))
-wu_genomemed_2021 <- readRDS(file.path(PATH, "data/infercnv/wu_genomemed_2021/run.final.infercnv_obj"))
+# wu_embo_2020 <- readRDS(file.path(PATH, "data/infercnv/wu_embo_2020/run.final.infercnv_obj"))
+# wu_genomemed_2021 <- readRDS(file.path(PATH, "data/infercnv/wu_genomemed_2021/run.final.infercnv_obj"))
 pal_2021 <- readRDS(file.path(PATH, "data/infercnv/pal_2021/run.final.infercnv_obj"))
 qian_2020 <- readRDS(file.path(PATH, "data/infercnv/qian_2020/run.final.infercnv_obj"))
 gao_2021 <- readRDS(file.path(PATH, "data/infercnv/gao_2021/run.final.infercnv_obj"))
@@ -30,8 +30,8 @@ for(dataset in dataset_names) {
 
 # Extracting infercnv values for observations
 wu_natgen_2021mat <- wu_natgen_2021@expr.data[, unlist(wu_natgen_2021@observation_grouped_cell_indices)]
-wu_embo_2020mat <- wu_embo_2020@expr.data[, unlist(wu_embo_2020@observation_grouped_cell_indices)]
-wu_genomemed_2021mat <- wu_genomemed_2021@expr.data[, unlist(wu_genomemed_2021@observation_grouped_cell_indices)]
+# wu_embo_2020mat <- wu_embo_2020@expr.data[, unlist(wu_embo_2020@observation_grouped_cell_indices)]
+# wu_genomemed_2021mat <- wu_genomemed_2021@expr.data[, unlist(wu_genomemed_2021@observation_grouped_cell_indices)]
 pal_2021mat <- pal_2021@expr.data[, unlist(pal_2021@observation_grouped_cell_indices)]
 qian_2020mat <- qian_2020@expr.data[, unlist(qian_2020@observation_grouped_cell_indices)]
 gao_2021mat <- gao_2021@expr.data[, unlist(gao_2021@observation_grouped_cell_indices)]
@@ -45,8 +45,8 @@ if(wu_natgen_method) {
   
   # Scaling each gene to -1,1
   wu_natgen_2021mat_scaled <- t(scale_to_range(t(wu_natgen_2021mat)))
-  wu_embo_2020mat_scaled <- t(scale_to_range(t(wu_embo_2020mat)))
-  wu_genomemed_2021mat_scaled <- t(scale_to_range(t(wu_genomemed_2021mat)))
+  # wu_embo_2020mat_scaled <- t(scale_to_range(t(wu_embo_2020mat)))
+  # wu_genomemed_2021mat_scaled <- t(scale_to_range(t(wu_genomemed_2021mat)))
   pal_2021mat_scaled <- t(scale_to_range(t(pal_2021mat)))
   qian_2020mat_scaled <- t(scale_to_range(t(qian_2020mat)))
   gao_2021mat_scaled <- t(scale_to_range(t(gao_2021mat)))
@@ -57,8 +57,8 @@ if(wu_natgen_method) {
   
   # Squaring and taking mean
   wu_natgen_2021sum <- colSums(wu_natgen_2021mat_scaled^2) / nrow(wu_natgen_2021mat_scaled)
-  wu_embo_2020sum <- colSums(wu_embo_2020mat_scaled^2) / nrow(wu_embo_2020mat_scaled)
-  wu_genomemed_2021sum <- colSums(wu_genomemed_2021mat_scaled^2) / nrow(wu_genomemed_2021mat_scaled)
+  # wu_embo_2020sum <- colSums(wu_embo_2020mat_scaled^2) / nrow(wu_embo_2020mat_scaled)
+  # wu_genomemed_2021sum <- colSums(wu_genomemed_2021mat_scaled^2) / nrow(wu_genomemed_2021mat_scaled)
   pal_2021sum <- colSums(pal_2021mat_scaled^2) / nrow(pal_2021mat_scaled)
   qian_2020sum <- colSums(qian_2020mat_scaled^2) / nrow(qian_2020mat_scaled)
   gao_2021sum <- colSums(gao_2021mat_scaled^2) / nrow(gao_2021mat_scaled)
@@ -70,8 +70,8 @@ if(wu_natgen_method) {
   
   # Just taking mean of absolute value of scores
   wu_natgen_2021sum <- colSums(abs(wu_natgen_2021mat)) / nrow(wu_natgen_2021mat)
-  wu_embo_2020sum <- colSums(abs(wu_embo_2020mat)) / nrow(wu_embo_2020mat)
-  wu_genomemed_2021sum <- colSums(abs(wu_genomemed_2021mat)) / nrow(wu_genomemed_2021mat)
+  # wu_embo_2020sum <- colSums(abs(wu_embo_2020mat)) / nrow(wu_embo_2020mat)
+  # wu_genomemed_2021sum <- colSums(abs(wu_genomemed_2021mat)) / nrow(wu_genomemed_2021mat)
   pal_2021sum <- colSums(abs(pal_2021mat)) / nrow(pal_2021mat)
   qian_2020sum <- colSums(abs(qian_2020mat)) / nrow(qian_2020mat)
   gao_2021sum <- colSums(abs(gao_2021mat)) / nrow(gao_2021mat)
@@ -81,18 +81,6 @@ if(wu_natgen_method) {
   wang_2024sum <- colSums(abs(wang_2024mat)) / nrow(wang_2024mat)
 }
 
-# par(mfrow=c(5,2))
-# hist(wu_natgen_2021sum, breaks=50, freq=FALSE, main = "wu_natgen_2021")
-# hist(wu_embo_2020sum, breaks=50, freq=FALSE, main = "wu_embo_2020")
-# hist(wu_genomemed_2021sum, breaks=50, freq=FALSE, main = "wu_genomemed_2021")
-# hist(pal_2021sum, breaks=50, freq=FALSE, main = "pal_2021")
-# hist(qian_2020sum, breaks=50, freq=FALSE, main = "qian_2020")
-# hist(gao_2021sum, breaks=50, freq=FALSE, main = "gao_2021")
-# hist(tietscher_2023sum, breaks=50, freq=FALSE, main = "tietscher_2023")
-# hist(bassez_2021sum, breaks=50, freq=FALSE, main = "bassez_2021")
-# hist(liu_2023sum, breaks=50, freq=FALSE, main = "liu_2023")
-# hist(wang_2024sum, breaks=50, freq=FALSE, main = "wang_2024")
-
 # Plot malignancy scores for each dataset along with controls
 # Epithelial-patient, neg control- patient
 wu_natgen_2021_malig_data <- wu_natgen_2021sum %>% as.data.frame()
@@ -101,17 +89,17 @@ wu_natgen_2021_malig_data <- merge(wu_natgen_2021_malig_data, annotation_data[["
 colnames(wu_natgen_2021_malig_data) <- c("cell_id", "score", "annotation")
 wu_natgen_2021_malig_data$batch <- "wu_natgen_2021"
 
-wu_embo_2020_malig_data <- wu_embo_2020sum %>% as.data.frame()
-colnames(wu_embo_2020_malig_data) <- "score"
-wu_embo_2020_malig_data <- merge(wu_embo_2020_malig_data, annotation_data[["wu_embo_2020"]], by=0)
-colnames(wu_embo_2020_malig_data) <- c("cell_id", "score", "annotation")
-wu_embo_2020_malig_data$batch <- "wu_embo_2020"
+# wu_embo_2020_malig_data <- wu_embo_2020sum %>% as.data.frame()
+# colnames(wu_embo_2020_malig_data) <- "score"
+# wu_embo_2020_malig_data <- merge(wu_embo_2020_malig_data, annotation_data[["wu_embo_2020"]], by=0)
+# colnames(wu_embo_2020_malig_data) <- c("cell_id", "score", "annotation")
+# wu_embo_2020_malig_data$batch <- "wu_embo_2020"
 
-wu_genomemed_2021_malig_data <- wu_genomemed_2021sum %>% as.data.frame()
-colnames(wu_genomemed_2021_malig_data) <- "score"
-wu_genomemed_2021_malig_data <- merge(wu_genomemed_2021_malig_data, annotation_data[["wu_genomemed_2021"]], by=0)
-colnames(wu_genomemed_2021_malig_data) <- c("cell_id", "score", "annotation")
-wu_genomemed_2021_malig_data$batch <- "wu_genomemed_2021"
+# wu_genomemed_2021_malig_data <- wu_genomemed_2021sum %>% as.data.frame()
+# colnames(wu_genomemed_2021_malig_data) <- "score"
+# wu_genomemed_2021_malig_data <- merge(wu_genomemed_2021_malig_data, annotation_data[["wu_genomemed_2021"]], by=0)
+# colnames(wu_genomemed_2021_malig_data) <- c("cell_id", "score", "annotation")
+# wu_genomemed_2021_malig_data$batch <- "wu_genomemed_2021"
 
 pal_2021_malig_data <- pal_2021sum %>% as.data.frame()
 colnames(pal_2021_malig_data) <- "score"
@@ -156,8 +144,8 @@ colnames(wang_2024_malig_data) <- c("cell_id", "score", "annotation")
 wang_2024_malig_data$batch <- "wang_2024"
 combined_malig_data <- rbind(
   wu_natgen_2021_malig_data,
-  wu_embo_2020_malig_data,
-  wu_genomemed_2021_malig_data,
+  # wu_embo_2020_malig_data,
+  # wu_genomemed_2021_malig_data,
   pal_2021_malig_data,
   qian_2020_malig_data,
   gao_2021_malig_data,
@@ -166,8 +154,30 @@ combined_malig_data <- rbind(
   liu_2023_malig_data,
   wang_2024_malig_data
 )
+# Finding the amount of cells per tumor outside the normal envelope
+
+combined_malig_data <- readRDS(file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
+normal_malig_ranges <- combined_malig_data %>%
+  dplyr::group_by(batch) %>% 
+  dplyr::filter(str_detect(annotation, "NegControl")) %>%
+  dplyr::summarise(
+    norm_25 = quantile(score, 0.025),
+    norm_5 = quantile(score, 0.05),
+    norm_95 = quantile(score, 0.95),
+    norm_975 = quantile(score, 0.975)
+  )
+combined_malig_data <- combined_malig_data %>% 
+  dplyr::left_join(x=., y=normal_malig_ranges, by="batch") %>%
+  dplyr::mutate(outside_norm_95 = case_when(score > norm_975 ~ TRUE,
+                                            score < norm_25 ~ TRUE,
+                                            .default = FALSE),
+                outside_norm_90 = case_when(score > norm_95 ~ TRUE,
+                                            score < norm_5 ~ TRUE,
+                                            .default = FALSE))
+saveRDS(combined_malig_data, file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 
 infercnv_plots <- list()
+dataset_names <- dataset_names[!(dataset_names %in% c("wu_embo_2020", "wu_genomemed_2021"))]
 for(i in seq_along(dataset_names)) {
   dataset_name <- dataset_names[[i]]
   batch_data <- combined_malig_data %>% dplyr::filter(batch == dataset_name)
@@ -273,26 +283,4 @@ combined_malig_data %>%
         axis.title.y = element_text(size = 16))
 ggsave(filename = file.path(PATH, paste0("results/infercnv/", dataset_name, "_sampled_squared_scores.png")), width = 7, height = 5) 
 
-
-# Finding the amount of cells per tumor outside the normal envelope
-
-combined_malig_data <- readRDS(file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
-normal_malig_ranges <- combined_malig_data %>%
-  dplyr::group_by(batch) %>% 
-  dplyr::filter(str_detect(annotation, "NegControl")) %>%
-  dplyr::summarise(
-    norm_25 = quantile(score, 0.025),
-    norm_5 = quantile(score, 0.05),
-    norm_95 = quantile(score, 0.95),
-    norm_975 = quantile(score, 0.975)
-  )
-combined_malig_data <- combined_malig_data %>% 
-  dplyr::left_join(x=., y=normal_malig_ranges, by="batch") %>%
-  dplyr::mutate(outside_norm_95 = case_when(score > norm_975 ~ TRUE,
-                                         score < norm_25 ~ TRUE,
-                                         .default = FALSE),
-                outside_norm_90 = case_when(score > norm_95 ~ TRUE,
-                                            score < norm_5 ~ TRUE,
-                                            .default = FALSE))
-saveRDS(combined_malig_data, file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 

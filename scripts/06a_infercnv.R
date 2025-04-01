@@ -11,8 +11,7 @@ PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
 combined_seurat_rpca <- readRDS(file.path(PATH, "data/sc/combined_seurat_rpca.rds"))
 
 batch_names <- read.delim(file.path(PATH, "scripts/06a_infercnv_data_paths"), header = FALSE)$V1
-#id <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-id <- 7
+id <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 batch_name <- batch_names[[id]]
 print(batch_name)
 
@@ -52,24 +51,6 @@ strom_values <- paste0("NegControl-Strom_", annotations$donor[strom_to_epi_indic
 imm_values <- paste0("NegControl-Imm", annotations$donor[imm_to_epi_indices])
 annotations$type_patient[strom_to_epi_indices] <- strom_values
 annotations$type_patient[imm_to_epi_indices] <- imm_values
-
-# Need to do this for each tumor!
-# for (donor in unique(annotations$donor)) {
-#   strom_indices <- which((annotations$type == "Stromal") & (annotations$donor == donor))
-#   imm_indices <- which((annotations$type == "Immune") & (annotations$donor == donor))
-#   # Randomly sample 100 indices from Stromal and Immune labels
-#   strom_to_epi_indices <- sample(strom_indices, 100)
-#   imm_to_epi_indices <- sample(imm_indices, 100)
-#   # Change to Non reference
-#   strom_values <- paste0("NegControl-Strom_", annotations$donor[strom_to_epi_indices])
-#   imm_values <- paste0("NegControl-Imm", annotations$donor[imm_to_epi_indices])
-#   annotations$type_patient[strom_to_epi_indices] <- strom_values
-#   annotations$type_patient[imm_to_epi_indices] <- imm_values
-# }
-# print(annotations %>% 
-#         dplyr::filter(str_detect(type_patient, "NegControl")) %>% 
-#         dplyr::pull(type_patient) %>% 
-#         table(useNA="always"))
 
 # Save the annotations file
 # annotations$cell <- NULL

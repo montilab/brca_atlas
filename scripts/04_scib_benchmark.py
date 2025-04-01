@@ -25,11 +25,8 @@ adata = sc.read_h5ad(os.path.join(PATH, "data/sc/combined_anndata.h5ad"))
 harmony_embeddings = pd.read_csv(os.path.join(PATH, "data/embeddings/all/harmony_embedding_combined.csv"), index_col=0)
 rpca_embeddings = pd.read_csv(os.path.join(PATH, "data/embeddings/all/rpca_embedding_combined.csv"), index_col=0)
 mnn_embeddings = pd.read_csv(os.path.join(PATH, "data/embeddings/all/mnn_embedding_combined.csv"), index_col=0)
-scvi = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scvi.csv"), header=None)
 scvi_30 = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scvi30.csv"), header=None)
-scanvi_ct = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scanvi_celltypist.csv"), header=None)
 scanvi_30_ct = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scanvi_30_celltypist.csv"), header=None)
-scanvi_subtype_celltypist = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scanvi_subtype_celltypist.csv"), header=None)
 scanvi_30_subtype_celltypist = pd.read_csv(os.path.join(PATH, "data/embeddings/all/scanvi_30_subtype_celltypist.csv"), header=None)
 
 np.array_equal(harmony_embeddings.index, mnn_embeddings.index)
@@ -39,11 +36,8 @@ np.array_equal(harmony_embeddings.index, adata.obs.index)
 adata.obsm['X_seurat_harmony'] = harmony_embeddings
 adata.obsm['X_seurat_rpca'] = rpca_embeddings
 adata.obsm['X_seurat_mnn'] = mnn_embeddings
-adata.obsm["X_scVI"] = scvi.values
 adata.obsm["X_scVI_30"] = scvi_30.values
-adata.obsm["X_scANVI_ct"] = scanvi_ct.values
 adata.obsm["X_scANVI_30_ct"] = scanvi_30_ct.values
-adata.obsm["X_scANVI_sub_ct"] = scanvi_subtype_celltypist.values
 adata.obsm["X_scANVI_30_sub_ct"] = scanvi_30_subtype_celltypist.values
 adata.obsm['X_concat'] = np.concatenate((adata.obsm['X_seurat_harmony'], 
                                          adata.obsm['X_seurat_rpca'],
@@ -53,9 +47,8 @@ adata.obsm["Unintegrated"] = adata.obsm["X_pca"]
 
 # Finding unique embeddings
 unique_idx = []
-for embed in ["Unintegrated", "X_scANVI_ct", "X_scANVI_30_ct", "X_scANVI_sub_ct", 
-"X_scANVI_30_sub_ct", "X_scVI", "X_scVI_30", "X_seurat_harmony", 
-"X_seurat_rpca", "X_seurat_mnn", 'X_concat']:
+for embed in ["Unintegrated", "X_scANVI_30_ct", "X_scANVI_30_sub_ct", 
+"X_scVI_30", "X_seurat_harmony", "X_seurat_rpca", "X_seurat_mnn", 'X_concat']:
     print(embed)
     print(adata.obsm[embed].shape)
     print(np.unique(adata.obsm[embed], axis=0).shape)
@@ -68,41 +61,40 @@ adata_sub = adata[unique_idx, :]
 # Evaluation
 biocons = BioConservation(isolated_labels=True, nmi_ari_cluster_labels_leiden=False, nmi_ari_cluster_labels_kmeans=True, silhouette_label=True, clisi_knn=True)
 # biocons = BioConservation(isolated_labels=False, nmi_ari_cluster_labels_leiden=False, nmi_ari_cluster_labels_kmeans=False, silhouette_label=False, clisi_knn=False)
-batchcons = BatchCorrection(silhouette_batch=True, ilisi_knn=True, kbet_per_label=True, graph_connectivity=True, pcr_comparison=False)
+batchcons = BatchCorrection(silhouette_batch=True, ilisi_knn=True, kbet_per_label=True, graph_connectivity=True, pcr_comparison=True)
+# bm = Benchmarker(
+#     adata_sub,
+#     batch_key="batch",
+#     label_key="celltypist_pred",
+#     bio_conservation_metrics=biocons,
+#     batch_correction_metrics=batchcons,
+#     embedding_obsm_keys=["Unintegrated", "X_scANVI_30_ct", "X_scANVI_30_sub_ct", 
+#     "X_scVI_30", "X_seurat_harmony", "X_seurat_rpca", "X_seurat_mnn", "X_concat"],
+#     pre_integrated_embedding_obsm_key="X_pca",
+#     n_jobs=-1)
+# 
+# bm.benchmark()
+#     
+# bm.plot_results_table(min_max_scale=False, save_dir=os.path.join(PATH, "results/benchmark/combined/celltype"))
+# df = bm.get_results(min_max_scale=False)
+# df.to_csv(os.path.join(PATH, "results/benchmark/combined/celltype/bm_combined.csv"))
+
+
 bm = Benchmarker(
     adata_sub,
     batch_key="batch",
-    label_key="celltypist_pred",
+    label_key="subtype_celltype",
     bio_conservation_metrics=biocons,
     batch_correction_metrics=batchcons,
-    embedding_obsm_keys=["Unintegrated", "X_scANVI_ct", "X_scANVI_30_ct", "X_scANVI_sub_ct", 
-"X_scANVI_30_sub_ct", "X_scVI", "X_scVI_30", "X_seurat_harmony", 
-"X_seurat_rpca", "X_seurat_mnn", "X_concat"],
+    embedding_obsm_keys=["Unintegrated", "X_scANVI_30_ct", "X_scANVI_30_sub_ct", "X_scVI_30", "X_seurat_harmony", "X_seurat_rpca", "X_seurat_mnn"],
     pre_integrated_embedding_obsm_key="X_pca",
     n_jobs=-1)
 
 bm.benchmark()
-    
-bm.plot_results_table(min_max_scale=False, save_dir=os.path.join(PATH, "results/benchmark/combined/celltype"))
-df = bm.get_results(min_max_scale=False)
-df.to_csv(os.path.join(PATH, "results/benchmark/combined/celltype/bm_combined.csv"))
 
-#
-# bm = Benchmarker(
-#     adata_sub,
-#     batch_key="batch",
-#     label_key="subtype_celltype",
-#     bio_conservation_metrics=biocons,
-#     batch_correction_metrics=batchcons,
-#     embedding_obsm_keys=["Unintegrated", "X_scANVI_ct", "X_scANVI_sub_ct", "X_scVI", "X_seurat_harmony", "X_seurat_rpca", "X_seurat_mnn"],
-#     pre_integrated_embedding_obsm_key="X_pca",
-#     n_jobs=-1)
-#
-# bm.benchmark()
-#
-# bm.plot_results_table(min_max_scale=False, save_dir=os.path.join(PATH, "results/benchmark/combined/subtype_celltype"))
-# df = bm.get_results(min_max_scale=False)
-# df.to_csv(os.path.join(PATH, "results/benchmark/combined/subtype_celltype/bm_combined.csv"))
+bm.plot_results_table(min_max_scale=False, save_dir=os.path.join(PATH, "results/benchmark/combined/subtype_celltype"))
+df = bm.get_results(min_max_scale=False)
+df.to_csv(os.path.join(PATH, "results/benchmark/combined/subtype_celltype/bm_combined.csv"))
 #
 # bm = Benchmarker(
 #     adata_sub,
@@ -120,5 +112,5 @@ df.to_csv(os.path.join(PATH, "results/benchmark/combined/celltype/bm_combined.cs
 # df = bm.get_results(min_max_scale=False)
 # df.to_csv(os.path.join(PATH, "results/benchmark/combined/celltype_new/bm_combined.csv"))
 
-with open(os.path.join(PATH, "results/benchmark/combined/celltype/bm_object.pkl"), 'wb') as outp:
-    pickle.dump(bm, outp, pickle.HIGHEST_PROTOCOL)
+# with open(os.path.join(PATH, "results/benchmark/combined/celltype/bm_object.pkl"), 'wb') as outp:
+#     pickle.dump(bm, outp, pickle.HIGHEST_PROTOCOL)

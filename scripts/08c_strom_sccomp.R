@@ -4,7 +4,7 @@ library(sccomp)
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
 
 # Loading Data
-strom_seurat <- readRDS(file.path(PATH, "data/sc/strom_rpca_clean.rds"))
+strom_seurat <- readRDS(file.path(PATH, "data/sc/strom_rpca_subset.rds"))
 strom_metadata <- strom_seurat@meta.data
 strom_metadata$sample_id <- rownames(strom_metadata)
 
@@ -69,7 +69,7 @@ sccomp_result =
     .sample =  donor, 
     .cell_group = cluster_annot, 
     bimodal_mean_variability_association = TRUE,
-    cores = 1
+    cores = 16
   ) |> 
   sccomp_remove_outliers(cores = 1) |> # Optional
   sccomp_test()

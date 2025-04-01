@@ -4,7 +4,7 @@
 #$ -o adding_embeddings.log
 #$ -m e
 #$ -j y
-#$ -P agedisease
+#$ -P brcameta
 #$ -pe omp 28
 #$ -l mem_per_core=18G
 

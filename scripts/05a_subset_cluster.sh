@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#$ -l h_rt=6:00:00
+#$ -l h_rt=12:00:00
 #$ -N sub_clust
 #$ -o sub_clust.log
 #$ -m e
