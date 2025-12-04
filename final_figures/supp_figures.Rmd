@@ -1,5 +1,5 @@
 ---
-title: "Scientific Data Figures"
+title: "Supplementary Figures"
 author: "Andrew Chen"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -135,6 +135,166 @@ p6 <- DimPlot_scCustom(
 p1 + p2 + p3 + p4 + p5 + p6 + patchwork::plot_layout(guides = 'collect')
 
 ggsave(filename = file.path(PATH, "results/umaps/all_integration_batch.png"), width = 20, height = 10)
+```
+
+# S3
+```{r}
+epi_subset <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+```
+
+## Metadata
+
+### Donors
+```{r}
+combined_seurat_rpca@meta.data %>% 
+  dplyr::count(batch, donor) %>% 
+  dplyr::group_by(batch) %>% 
+  dplyr::mutate(unique_donors = n_distinct(donor),
+                total_cells = sum(n)) %>% 
+  dplyr::ungroup() %>%
+  ggplot(aes(x = reorder(batch, total_cells, decreasing = TRUE), fill = donor, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  geom_text(
+    aes(y = total_cells, label = unique_donors),
+    vjust = -0.5,
+    size = 5
+  ) + 
+  scale_fill_manual(values = varibow_pal) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  theme(legend.position = "none",
+        text = element_text(size = 20),
+        axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1)) + 
+  labs(x = NULL, y = "Cells") 
+```
+
+```{r}
+donor_data <- epi_subset@meta.data %>% 
+  dplyr::group_by(RNA_snn_res.0.1) %>% 
+  dplyr::summarise(
+    distinct_count = n_distinct(donor), 
+    entropy = {
+      p <- table(donor) / n()
+      if(n_distinct(donor) > 1) {
+        -sum(p * log2(p)) / log2(n_distinct(donor))
+      } else {
+        -sum(p * log2(p))
+      }
+})
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 136, palette = "varibow")
+p1 <- epi_subset@meta.data %>% 
+  dplyr::count(RNA_snn_res.0.1, donor) %>% 
+  dplyr::group_by(RNA_snn_res.0.1) %>%
+  dplyr::mutate(unique_donors = n_distinct(donor),
+                total_cells = sum(n)) %>%
+  ggplot(aes(x = reorder(RNA_snn_res.0.1, n, sum, decreasing = TRUE), fill = donor, y = n)) + 
+  geom_col(position = "stack", colour = "black") +
+  geom_text(
+    aes(y = total_cells, label = unique_donors),
+    vjust = -0.5,
+    size = 2
+  ) + 
+  scale_fill_manual(values = varibow_pal) +
+  theme_minimal() + 
+  theme(legend.position = "none",
+        text = element_text(size = 12),
+        axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "# Cells", title = "Number of Donors/Cluster")
+
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 31, palette = "varibow")
+p2 <- donor_data %>% 
+  ggplot(aes(x = reorder(RNA_snn_res.0.1, entropy, decreasing = TRUE), fill = RNA_snn_res.0.1, y = entropy)) +
+  geom_col(position = "stack", colour = "black") +
+  scale_fill_manual(values = varibow_pal) +
+  theme_minimal() + 
+  theme(legend.position = "none",
+        text = element_text(size = 12),
+        axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1)) + 
+  labs(x = "Cluster", y = "Entropy", title = "Entropy of donor proportions")
+combined <- cowplot::plot_grid(p1, p2, nrow = 1, ncol = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/final_figures/donors_entropy.png"), width = 9, height = 4)
+```
+
+### Subtype/PAM
+```{r}
+pam50 <- read.csv("/restricted/projectnb/brcameta/brca_atlas/data/metadata/pam50.csv", row.names = NULL)[,2:3]
+pam50$pam50 <- str_replace(pam50$pam50, "Normal", "Normal-like")
+epi_subset$donor <- str_replace_all(epi_subset$donor, pattern = "-", replacement = "_")
+epi_pam50_metadata <- dplyr::left_join(epi_subset@meta.data,
+                                       pam50,
+                                       by = "donor")
+rownames(epi_pam50_metadata) <- rownames(epi_subset@meta.data)
+epi_subset@meta.data <- epi_pam50_metadata
+```
+
+```{r}
+epi_subset$celltypist_epi_only <- with(epi_subset@meta.data, 
+                                     case_when(celltypist_broad == "Epithelial" ~ celltypist_pred,
+                                               celltypist_broad != "Epithelial" ~ NA,
+                                               .default = celltypist_broad))
+p1 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "RNA_snn_res.0.1",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       raster = FALSE,
+                       repel = TRUE) + labs(title="",
+                                            x = "UMAP 1", 
+                                            y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p2 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "celltypist_epi_only",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title="",
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p3 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "subtype_new",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title="",
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+p4 <- DimPlot_scCustom(epi_subset,
+                       reduction = "umap.rpca",
+                       group.by = "pam50",
+                       label = TRUE,
+                       label.size = 2.5,
+                       label.box = TRUE,
+                       repel = TRUE,
+                       raster = FALSE) + labs(title="",
+                                              x = "UMAP 1", 
+                                              y = "UMAP 2") +
+                       theme(legend.position = "none",
+                             plot.title = element_text(
+                               family = "Arial",
+                               face = "plain",
+                               hjust = 0))
+
+combined <- cowplot::plot_grid(p1, p2, p3, p4, ncol = 2, nrow = 2)
+ggsave(plot = combined, filename = file.path(PATH, "results/final_figures/epi_subtype_pam50_hbca.png"), height = 8, width = 10)
 ```
 
 # S3

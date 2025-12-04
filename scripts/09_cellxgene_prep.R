@@ -37,7 +37,7 @@ cellxgene_metadata_columns <- c("organism_ontology_term_id",
                                 "batch")
 
 # # 1. Imm Subset
-# imm_rpca <- readRDS(file.path(PATH, "data/sc/imm_rpca_clean.rds"))
+# imm_rpca <- readRDS(file.path(PATH, "data/sc/imm_rpca_sub_clean.rds"))
 #
 # # Filtering gene symbols to matchable ensemblids
 # hgnc_ensembl <- data.frame(hgnc = rownames(imm_rpca))
@@ -82,37 +82,55 @@ cellxgene_metadata_columns <- c("organism_ontology_term_id",
 # imm_rpca_new$disease_ontology_term_id <- "MONDO:0007254"
 # # Match Cell type Ontologies to annotations found in dataset
 # imm_rpca_new$cell_type_ontology_term_id <- with(imm_rpca_new@meta.data,
-#                                       case_when(`RNA_snn_res.0.6` == 0 ~ "CL:0000235",
-#                                                 `RNA_snn_res.0.6` == 1 ~ "CL:0000913",
-#                                                 `RNA_snn_res.0.6` == 2 ~ "CL:0000905",
-#                                                 `RNA_snn_res.0.6` == 3 ~ "CL:0000623",
-#                                                 `RNA_snn_res.0.6` == 4 ~ "CL:0000787",
-#                                                 `RNA_snn_res.0.6` == 5 ~ "CL:0001047",
-#                                                 `RNA_snn_res.0.6` == 6 ~ "CL:0000898",
-#                                                 `RNA_snn_res.0.6` == 7 ~ "CL:0000985",
-#                                                 `RNA_snn_res.0.6` == 8 ~ "CL:0000235",
-#                                                 `RNA_snn_res.0.6` == 9 ~ "CL:0000795",
-#                                                 `RNA_snn_res.0.6` == 10 ~ "CL:0011025",
-#                                                 `RNA_snn_res.0.6` == 11 ~ "CL:0000990",
-#                                                 `RNA_snn_res.0.6` == 12 ~ "CL:0002038",
-#                                                 `RNA_snn_res.0.6` == 14 ~ "CL:4033069",
-#                                                 `RNA_snn_res.0.6` == 16 ~ "CL:4033076",
-#                                                 `RNA_snn_res.0.6` == 17 ~ "CL:0000097",
-#                                                 `RNA_snn_res.0.6` == 18 ~ "CL:0011025",
-#                                                 `RNA_snn_res.0.6` == 19 ~ "CL:0000784",
-#                                                 `RNA_snn_res.0.6` == 21 ~ "CL:0000782",
-#                                                 `RNA_snn_res.0.6` == 23 ~ "CL:0000990",
-#                                                 `RNA_snn_res.0.6` == 24 ~ "CL:0000787",
-#                                                 `RNA_snn_res.0.6` == 25 ~ "CL:0000492",
-#                                                 `RNA_snn_res.0.6` == 27 ~ "CL:4033069",
-#                                                 `RNA_snn_res.0.6` == 28 ~ "CL:0000985"))
+#                                       case_when(combined.sub == "mac_0" ~ "CL:4033086",
+#                                                 combined.sub == "mac_1" ~ "CL:0000863",
+#                                                 combined.sub == "mac_2" ~ "CL:4033086",
+#                                                 combined.sub == "mac_3" ~ "CL:0000576",
+#                                                 combined.sub == "mac_4" ~ "CL:0000864",
+#                                                 combined.sub == "mac_5" ~ "CL:0000863",
+#                                                 combined.sub == "mac_6" ~ "CL:0000576",
+#                                                 combined.sub == "mac_7" ~ "CL:0000890",
+#                                                 combined.sub == "mac_8" ~ "CL:0000576",
+#                                                 combined.sub == "mac_9" ~ "CL:0000235",
+#                                                 combined.sub == "mac_10" ~ "CL:0000235",
+#                                                 combined.sub == "mac_11" ~ "CL:0000576",
+#                                                 combined.sub == 1 ~ "CL:0000913",
+#                                                 combined.sub == 2 ~ "CL:0000905",
+#                                                 combined.sub == "3_1" ~ "CL:0000623",
+#                                                 combined.sub == "3_2" ~ "CL:0000623",
+#                                                 combined.sub == "3_4" ~ "CL:0000623",
+#                                                 combined.sub == "3_5" ~ "CL:0000623",
+#                                                 combined.sub == "3_0" ~ "CL:0000623",
+#                                                 combined.sub == "3_3" ~ "CL:0000623",
+#                                                 combined.sub == "4_3" ~ "CL:0000236",
+#                                                 combined.sub == "4_0" ~ "CL:0000785",
+#                                                 combined.sub == "4_1" ~ "CL:0000788",
+#                                                 combined.sub == "4_2" ~ "CL:0000787",
+#                                                 combined.sub == "4_4" ~ "CL:0000844",
+#                                                 combined.sub == 5 ~ "CL:0001047",
+#                                                 combined.sub == 6 ~ "CL:0000898",
+#                                                 combined.sub == 7 ~ "CL:0000985",
+#                                                 combined.sub == 9 ~ "CL:0000795",
+#                                                 combined.sub == 10 ~ "CL:0011025",
+#                                                 combined.sub == 11 ~ "CL:0000990",
+#                                                 combined.sub == 12 ~ "CL:0002038",
+#                                                 combined.sub == 14 ~ "CL:4033069",
+#                                                 combined.sub == 17 ~ "CL:0000097",
+#                                                 combined.sub == 18 ~ "CL:0011025",
+#                                                 combined.sub == 19 ~ "CL:0000784",
+#                                                 combined.sub == 21 ~ "CL:0000782",
+#                                                 combined.sub == 23 ~ "CL:0000990",
+#                                                 combined.sub == 24 ~ "CL:0000787",
+#                                                 combined.sub == 25 ~ "CL:0000492",
+#                                                 combined.sub == 27 ~ "CL:4033069",
+#                                                 combined.sub == 28 ~ "CL:0000985"))
 # imm_rpca_new$self_reported_ethnicity_ontology_term_id <- "unknown"
 # # Cell x gene will help you translate numerical age values to ontology ids
 # imm_rpca_new$development_stage_ontology_term_id <- imm_rpca_new$age
 # imm_rpca_new$sex_ontology_term_id <- "PATO:0000383"
 # imm_rpca_new$donor_id <- imm_rpca_new$donor
 # imm_rpca_new$suspension_type <- "cell"
-# imm_rpca_new$author_cell_type <- imm_rpca_new$cluster_annot
+# imm_rpca_new$author_cell_type <- imm_rpca_new$cluster_annot_sub
 # imm_rpca_new@reductions$pca <- NULL
 # imm_rpca_new@reductions$umap.pca <- NULL
 # imm_rpca_new@reductions$integrated.rpca <- NULL
@@ -123,8 +141,8 @@ cellxgene_metadata_columns <- c("organism_ontology_term_id",
 # sceasy::convertFormat(imm_rpca_new, from="seurat", to="anndata",
 #                       main_layer = "counts", transfer_layers="data",
 #                       drop_single_values = FALSE,
-#                       outFile=file.path(PATH, "data/sc/cellxgene/imm.h5ad"))
-#
+#                       outFile=file.path(PATH, "data/sc/cellxgene/imm_new.h5ad"))
+
 # # 2. Strom Subset
 # strom_rpca <- readRDS(file.path(PATH, "data/sc/strom_rpca_subset.rds"))
 #
@@ -205,8 +223,17 @@ cellxgene_metadata_columns <- c("organism_ontology_term_id",
 #                       drop_single_values = FALSE,
 #                       outFile=file.path(PATH, "data/sc/cellxgene/strom.h5ad"))
 #
-# 3. Epi Subset
+# # 3. Epi Subset
 epi_rpca <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+epi_data <- readRDS(file.path(PATH, "results/annotation/epi/scores_cell.rds"))
+epi_data <- epi_data %>% dplyr::filter(Cluster %in% setdiff(0:22, c(9,19,12,21,7,10,11)))
+epi_data$Cluster <- droplevels(epi_data$Cluster)
+epi_data <- epi_data[,-c(2,3,4,8,10)]
+colnames(epi_data)[6:8] <- paste0(str_replace_all(colnames(epi_data[6:8]), pattern = ". State", replacement = " (EMP)"))
+colnames(epi_data)[9:19] <- paste0(colnames(epi_data)[9:19], " (HBCA)")
+colnames(epi_data)[20:69] <- paste0(colnames(epi_data)[20:69], " (Hall.)")
+colnames(epi_data) <- str_replace_all(colnames(epi_data), "Hallmark ", replacement = "")
+write.csv(epi_data, file.path(PATH, "data/sc/epi_scores.csv"))
 
 # Filtering gene symbols to matchable ensemblids
 hgnc_ensembl <- data.frame(hgnc = rownames(epi_rpca))
@@ -258,23 +285,26 @@ epi_rpca_new$development_stage_ontology_term_id <- epi_rpca_new$age
 epi_rpca_new$sex_ontology_term_id <- "PATO:0000383"
 epi_rpca_new$donor_id <- epi_rpca_new$donor
 epi_rpca_new$suspension_type <- "cell"
-epi_rpca_new$author_cell_type <- "Malignant"
+epi_rpca_new$author_cell_type <- paste0("epi", epi_rpca_new$RNA_snn_res.0.1)
 epi_rpca_new@reductions$pca <- NULL
 epi_rpca_new@reductions$umap.pca <- NULL
 epi_rpca_new@reductions$integrated.rpca <- NULL
 epi_rpca_new[["RNA"]] <- as(epi_rpca_new[["RNA"]], "Assay")
 epi_rpca_new@meta.data <- epi_rpca_new@meta.data %>% dplyr::select(all_of(cellxgene_metadata_columns))
+# Adding scores
+epi_rpca_new@meta.data$`Cell Id` <- rownames(epi_rpca_new@meta.data)
+epi_rpca_new@meta.data <- dplyr::left_join(epi_rpca_new@meta.data, epi_data, by="Cell Id")
 saveRDS(epi_rpca_new, file.path(PATH, "data/sc/cellxgene/epi.rds"))
 sceasy::convertFormat(epi_rpca_new, from="seurat", to="anndata",
                       main_layer = "counts", transfer_layers="data",
                       drop_single_values = FALSE,
-                      outFile=file.path(PATH, "data/sc/cellxgene/epi.h5ad"))
-# Saving umap
-combined_seurat_rpca <- readRDS("/restricted/projectnb/brcameta/brca_atlas/data/sc/combined_seurat_rpca.rds")
-write.csv(combined_seurat_rpca@reductions$umap.rpca@cell.embeddings, file.path(PATH, "data/embeddings/all/rpca_umap.csv"), row.names = TRUE)
-
-epi_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/epi.rds"))
-strom_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/strom.rds"))
-imm_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/imm.rds"))
-combined_seurat <- scCustomize::Merge_Seurat_List(list(epi_rpca, imm_rpca, strom_rpca), project = "cellxgene")
-saveRDS(combined_seurat, file.path(PATH, "data/sc/cellxgene/all.rds"))
+                      outFile=file.path(PATH, "data/sc/cellxgene/epi_new.h5ad"))
+# # Saving umap
+# combined_seurat_rpca <- readRDS("/restricted/projectnb/brcameta/brca_atlas/data/sc/combined_seurat_rpca.rds")
+# write.csv(combined_seurat_rpca@reductions$umap.rpca@cell.embeddings, file.path(PATH, "data/embeddings/all/rpca_umap.csv"), row.names = TRUE)
+#
+# epi_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/epi.rds"))
+# strom_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/strom.rds"))
+# imm_rpca <- readRDS(file.path(PATH, "data/sc/cellxgene/imm.rds"))
+# combined_seurat <- scCustomize::Merge_Seurat_List(list(epi_rpca, imm_rpca, strom_rpca), project = "cellxgene")
+# saveRDS(combined_seurat, file.path(PATH, "data/sc/cellxgene/all.rds"))

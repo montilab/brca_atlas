@@ -4,7 +4,7 @@ library(sccomp)
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
 
 # Loading Data
-imm_seurat <- readRDS(file.path(PATH, "data/sc/imm_rpca_clean.rds"))
+imm_seurat <- readRDS(file.path(PATH, "data/sc/imm_rpca_sub_clean.rds"))
 imm_metadata <- imm_seurat@meta.data
 imm_metadata$sample_id <- rownames(imm_metadata)
 
@@ -28,24 +28,24 @@ rownames(imm_metadata) <- imm_metadata$sample_id
 imm_seurat@meta.data <- imm_metadata
 
 # sccomp needs complete cases
-luma_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                        dplyr::select(sample_id, pam_luma, cluster_annot, grade, batch, age))]
-lumb_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                        dplyr::select(sample_id, pam_lumb, cluster_annot, grade, batch, age))]
-norm_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                        dplyr::select(sample_id, pam_norm, cluster_annot, grade, batch, age))]
-her2_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                        dplyr::select(sample_id, pam_her2, cluster_annot, grade, batch, age))]
-basal_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                         dplyr::select(sample_id, pam_basal, cluster_annot, grade, batch, age))]
-sub_her2_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                            dplyr::select(sample_id, sub_her2, cluster_annot, grade, batch, age))]
-sub_er_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                          dplyr::select(sample_id, sub_er, cluster_annot, grade, batch, age))]
-sub_tnbc_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>% 
-                                                            dplyr::select(sample_id, sub_tnbc, cluster_annot, grade, batch, age))]
+luma_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                        dplyr::select(sample_id, pam_luma, cluster_annot_sub, grade, batch, age))]
+lumb_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                        dplyr::select(sample_id, pam_lumb, cluster_annot_sub, grade, batch, age))]
+norm_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                        dplyr::select(sample_id, pam_norm, cluster_annot_sub, grade, batch, age))]
+her2_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                        dplyr::select(sample_id, pam_her2, cluster_annot_sub, grade, batch, age))]
+basal_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                         dplyr::select(sample_id, pam_basal, cluster_annot_sub, grade, batch, age))]
+sub_her2_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                            dplyr::select(sample_id, sub_her2, cluster_annot_sub, grade, batch, age))]
+sub_er_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                          dplyr::select(sample_id, sub_er, cluster_annot_sub, grade, batch, age))]
+sub_tnbc_samples <- imm_metadata$sample_id[complete.cases(imm_metadata %>%
+                                                            dplyr::select(sample_id, sub_tnbc, cluster_annot_sub, grade, batch, age))]
 
-# 1. LumA 
+# 1. LumA
 imm_seurat_nona <- imm_seurat[, luma_samples]
 print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
 
@@ -54,7 +54,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ pam_luma + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -73,7 +73,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ pam_lumb + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -92,7 +92,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ pam_basal + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -102,7 +102,7 @@ sccomp_result =
 saveRDS(sccomp_result, file.path(PATH, "results/sccomp/imm/pam_basal.rds"))
 print("Done with basal Regression")
 
-# 4. Pam Her2 
+# 4. Pam Her2
 imm_seurat_nona <- imm_seurat[, her2_samples]
 print(imm_seurat_nona@meta.data$donor %>% unique %>% length)
 
@@ -111,7 +111,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ pam_her2 + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -130,7 +130,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ pam_norm + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -149,7 +149,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ sub_tnbc + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -168,7 +168,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ sub_her2 + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>
@@ -187,7 +187,7 @@ sccomp_result =
   sccomp_estimate(
     formula_composition = ~ sub_er + grade + age + (1|batch),
     .sample =  donor,
-    .cell_group = cluster_annot,
+    .cell_group = cluster_annot_sub,
     bimodal_mean_variability_association = TRUE,
     cores = 16
   ) |>

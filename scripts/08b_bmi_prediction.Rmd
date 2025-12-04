@@ -12,19 +12,26 @@ output:
     code_folding: hide
 ---
 
-```{r}
+```{r, echo=FALSE, message=FALSE}
 library(GSVA)
 library(tidyverse)
 library(SingleCellExperiment)
 library(survminer)
 library(survival)
+library("AnnotationDbi")
+library("org.Hs.eg.db")
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
+DATA_PATH <- file.path(Sys.getenv("CBM"), "otherStudies/scRNAseq/brca")
 TCGAPATH <- file.path(Sys.getenv("CBM"),"TCGA-GDC/")
 METABRICPATH <- file.path(Sys.getenv("CBM"), "METABRIC/")
-do_save <- TRUE
+do_save <- FALSE
 ```
 
 # Loading Expression Data
+```{r}
+combined_data_avg <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_pb.rds"))
+```
+
 ```{r}
 tcga_brca <- readRDS(file.path(TCGAPATH,"/RNAseq/esets_filtered/TCGA-BRCA_2020-03-22_DESeq2_log_filtered_eset.rds"))
 metabric <- readRDS(file.path(METABRICPATH, "ESets/metabric_GE_ESet.rds"))
@@ -46,7 +53,9 @@ table(pData(tcga_brca)$subtype_selected)
 metabric$Pam50_SUBTYPE %>% table
 ```
 
-# GSVA
+# Loading Feature Data
+
+## GSVA
 ```{r}
 ## DE Signatures
 obese_sigs <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/obese_sigs.rds"))
@@ -113,13 +122,12 @@ if (do_save) {
                            verbose=FALSE) 
   saveRDS(metabric_ir_gsva, file.path(PATH, "data/pseudobulk/metabric_ir_gsva.rds"))
 } else {
-  tcga_obese_gsva <- readRDS(file.path(PATH, "data/tcga_gsva_obese.rds"))
-  metabric_obese_gsva <- readRDS(file.path(PATH, "data/metabric_gsva_obese.rds"))
-  tcga_ir_gsva <- readRDS(file.path(PATH, "data/tcga_ir_gsva.rds"))
-  metabric_ir_gsva <- readRDS(file.path(PATH, "data/metabric_ir_gsva.rds"))
+  tcga_obese_gsva <- readRDS(file.path(PATH, "data/gsva/tcga_gsva_obese.rds"))
+  metabric_obese_gsva <- readRDS(file.path(PATH, "data/gsva/metabric_gsva_obese.rds"))
+  tcga_ir_gsva <- readRDS(file.path(PATH, "data/gsva/tcga_ir_gsva.rds"))
+  metabric_ir_gsva <- readRDS(file.path(PATH, "data/gsva/metabric_ir_gsva.rds"))
 }
 ```
-
 ```{r}
 tcga_gsva_data <- pData(tcga_obese_gsva) %>% as.data.frame %>%
   dplyr::select(sample_id, file_id, all_up, all_dn, all_diff, epithelial_up, epithelial_dn, epithelial_diff, immune_up, immune_dn, immune_diff, endo_up, endo_dn, endo_diff, mesen_up, mesen_dn, mesen_diff)
@@ -130,12 +138,31 @@ metabric_gsva_data <- pData(metabric_obese_gsva) %>% as.data.frame %>%
   dplyr::select(SAMPLE_ID, all_up, all_dn, all_diff, epithelial_up, epithelial_dn, epithelial_diff, immune_up, immune_dn, immune_diff, endo_up, endo_dn, endo_diff, mesen_up, mesen_dn, mesen_diff)
 ```
 
+## HVG
+```{r}
+navin_var_5k <- readRDS(file.path(DATA_PATH, "navin_2023/navin_var_avg_5000.rds"))
+navin_var_5k <- mapIds(org.Hs.eg.db, keys=navin_var_5k, column="SYMBOL", keytype="ENSEMBL", multiVals="first")
+combined_var_5k <- readRDS(file.path(PATH, "data/var_genes/combined_var_avg_5000.rds"))
+
+all_5k <- intersect(navin_var_5k, combined_var_5k)
+combined_data_avg_5k <- combined_data_avg[all_5k,]
+combined_data_avg_data_5k <- LayerData(combined_data_avg_5k, "scale.data") %>% as.matrix %>% t %>% as.data.frame
+```
+
 # Loading Model
+
+## Logistic regression model
 ```{r}
 lr_model <- readRDS(file.path(PATH, "brca_atlas_validation/data/lr_model.rds"))
 ```
 
-# Predicting on TCGA BRCA
+## Random Forest model
+```{r}
+rf_model <- readRDS(file.path(PATH, "brca_atlas_validation/data/rf_5k_best.rds"))
+```
+
+
+# TCGA BRCA Pred. (GSVA)
 ```{r}
 tcga_pred <- tcga_gsva_data %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
 
@@ -252,7 +279,7 @@ summary(tcga.cox3)
 ```
 
 
-# Predicting on Metabric
+# METABRIC Pred. (GSVA)
 ```{r}
 metabric_pred <- metabric_gsva_data %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
 
@@ -417,6 +444,8 @@ tbls <- read_multi_xlsx$read_multi_xlsx(
 
 
 # Predicting on Atlas
+
+## GSVA
 ```{r}
 cancer_obese_gsva <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_gsva_obese.rds"))
 cancer_pred <- cancer_obese_gsva@colData %>% as.data.frame %>% dplyr::select(c("all_diff", "epithelial_diff", "immune_diff", "endo_diff", "mesen_diff")) %>% dplyr::rename(epi = epithelial_diff, all = all_diff, imm=immune_diff, endo=endo_diff, mesen=mesen_diff)
@@ -454,3 +483,29 @@ write.csv(combined_metadata, file.path(PATH, "data/metadata/all_metadata.csv"), 
 #   dplyr::left_join(x=., y=obesity_pred, by="donor")
 # saveRDS(combined_seurat_integrated, file.path(PATH, "data/combined_seurat_filtered.rds"))
 ```
+
+## HVG
+```{r}
+rf_test_pred <- 
+  predict(rf_model, combined_data_avg_data_5k) %>%
+  bind_cols(predict(rf_model, combined_data_avg_data_5k, type="prob"))
+rf_test_pred$.pred_1 %>% hist(main="Histogram of Obesity Probabilities")
+```
+```{r}
+# Adding IR data
+ir_gsva <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_hardy_gsva.rds"))
+ir_gsva_coldata <- colData(ir_gsva) %>% as.data.frame %>% dplyr::select(c(donor,up,dn,diff))
+colnames(ir_gsva_coldata) <- c("donor_id", "hardy_up", "hardy_dn", "hardy_diff")
+ir_gsva_coldata$donor_id <- str_replace_all(string=ir_gsva_coldata$donor_id, "-", "_")
+cellxgene_metadata <- read.csv(file.path(PATH, "data/metadata/cellxgene_metadata.csv"), row.names = 1)
+cellxgene_metadata$donor_id <- str_replace_all(string=cellxgene_metadata$donor_id, "-", "_")
+cellxgene_metadata <- cellxgene_metadata %>% rownames_to_column("id")
+combined_metadata <- dplyr::left_join(cellxgene_metadata, ir_gsva_coldata, by = "donor_id")
+# Adding obesity data
+obesity_pred <- data.frame(donor_id = rownames(combined_data_avg_data_5k), obesity_prob = rf_test_pred$.pred_1)
+obesity_pred$donor_id <- str_replace_all(string=obesity_pred$donor_id, "-", "_")
+combined_metadata <- dplyr::left_join(combined_metadata, obesity_pred, by = "donor_id")
+combined_metadata <- combined_metadata %>% column_to_rownames("id")
+write.csv(combined_metadata, file.path(PATH, "data/metadata/cellxgene_metadata_metabolic.csv"), row.names = TRUE)
+```
+

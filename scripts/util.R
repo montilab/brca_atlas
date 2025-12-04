@@ -31,7 +31,7 @@ singler_short <- function(singler_annot) {
   singler_annot[str_detect(singler_annot, "endothelial") | str_detect(singler_annot, "Endothelial")] <- "Endothelial"
   singler_annot[str_detect(singler_annot, "capillary")] <- "Endothelial"
   singler_annot[str_detect(singler_annot, "muscle")] <- "Smooth Muscle"
-  
+
   singler_annot <- str_to_title(singler_annot)
   return(singler_annot)
 }
@@ -47,9 +47,9 @@ singler_short <- function(singler_annot) {
 #' @export
 singler_broad <- function(singler_annot) {
   # Epi
-  singler_annot[str_detect(singler_annot, "epithelial|basal")] <- "Epithelial" 
+  singler_annot[str_detect(singler_annot, "epithelial|basal")] <- "Epithelial"
   # Imm
-  singler_annot[str_detect(singler_annot, 
+  singler_annot[str_detect(singler_annot,
                            "T cell|B cell|myeloid|macrophage|neutrophil|killer|lymphocyte|monocyte|plasma|dendritic|mast")] <- "Immune"
   # Strom
   singler_annot[str_detect(singler_annot, "endo|capillary|muscle|fibro|pericyte")] <- "Stromal"
@@ -88,8 +88,8 @@ celltypist_short <- function(celltypist_annot) {
   celltypist_annot[str_detect(celltypist_annot, "pericytes")] <- "Pericytes"
   celltypist_annot[str_detect(celltypist_annot, "Vas")] <- "Endothelial"
   celltypist_annot[str_detect(celltypist_annot, "vsmc")] <- "Smooth Muscle"
-  
-  
+
+
   celltypist_annot <- str_to_title(celltypist_annot)
   return(celltypist_annot)
 }
@@ -105,7 +105,7 @@ celltypist_short <- function(celltypist_annot) {
 #' @export
 celltypist_broad <- function(celltypist_annot) {
   # Epi
-  celltypist_annot[str_detect(celltypist_annot, "LummHR|basal|Lumsec")] <- "Epithelial" 
+  celltypist_annot[str_detect(celltypist_annot, "LummHR|basal|Lumsec")] <- "Epithelial"
   # Imm
   celltypist_annot[str_detect(celltypist_annot, "CD4|CD8|DC|GD|NK|bmem|b_naive|plasma|Macro|Mono|mye-prol|T_prol|Mast|Neutrophil")] <- "Immune"
   # Strom
@@ -142,7 +142,7 @@ author_short <- function(author_annot) {
   author_annot[str_detect(author_annot, "PVL")] <- "Pericyte"
   author_annot[str_detect(author_annot, "CAFs")] <- "CAFs"
   author_annot[str_detect(author_annot, "EC")] <- "Endothelial"
-  
+
   author_annot <- str_to_title(author_annot)
   return(author_annot)
 }
@@ -187,7 +187,7 @@ author_new <- function(author_annot) {
   author_annot[author_annot == "Epithelial_Basal"] <- "Epithelial"
   author_annot[author_annot == "Epithelial_Basal_Cycling"] <- "Epithelial"
   author_annot[author_annot == "Epithelial_Luminal_Mature"] <- "Epithelial"
-  
+
   return(author_annot)
 }
 
@@ -202,9 +202,9 @@ author_new <- function(author_annot) {
 #' @export
 author_broad <- function(author_annot) {
   # Epi
-  author_annot[str_detect(author_annot, "Cancer|Epithelial|epithelial|Malignant")] <- "Epithelial" 
+  author_annot[str_detect(author_annot, "Cancer|Epithelial|epithelial|Malignant")] <- "Epithelial"
   # Imm
-  author_annot[str_detect(author_annot, 
+  author_annot[str_detect(author_annot,
                           "DC|T-cell|granu|Lymph|B-cell|NK|Mono|Macro|Tfh|Plasma|Mast|Dendritic|T-Regs|Myeloid")] <- "Immune"
   # Strom
   author_annot[str_detect(author_annot, "Pericyte|EC|Endo|Fibro|PVL|CAF")] <- "Stromal"
@@ -232,7 +232,7 @@ scale_to_range <- function(x, new_min = -1, new_max = 1) {
 #' parameter, identifying differentially expressed clusters, and ranking by effect size.
 #'
 #' @param sccomp_df A data frame containing sccomp results. Must include columns
-#'   "parameter", "c_FDR", "c_effect", and "cluster_annot".
+#'   "parameter", "c_FDR", "c_effect", and an annotation column.
 #' @param param The parameter to filter the data frame by.
 #' @param v_c Either "c" for cell counts or "v" for variance. Determines which
 #'   columns to use for filtering and ranking. Default is "c".
@@ -247,19 +247,19 @@ scale_to_range <- function(x, new_min = -1, new_max = 1) {
 #'
 #' @importFrom dplyr %>% filter mutate case_when pull
 #' @export
-sccomp_prep_data <- function(sccomp_df, param, v_c = "c", fdr = 0.05, order = NULL) {
-  
-  stopifnot(all(c("parameter", "c_FDR", "c_effect", "cluster_annot") %in% colnames(sccomp_df)))
-  
+sccomp_prep_data <- function(sccomp_df, param, annot_col = "cluster_annot", v_c = "c", fdr = 0.05, order = NULL) {
+
+  stopifnot(all(c("parameter", "c_FDR", "c_effect") %in% colnames(sccomp_df)))
+
   if (v_c == "c") {
-    sccomp_df <- sccomp_df %>% 
+    sccomp_df <- sccomp_df %>%
       dplyr::filter(parameter == param) %>%
       dplyr::mutate(diffexpressed = case_when((c_FDR < fdr) & (c_effect < 0) ~ "dn",
                                               (c_FDR < fdr) & (c_effect > 0) ~ "up",
                                               .default = "ns"),
                     y = rank(c_effect))
   } else if (v_c == "v") {
-    sccomp_df <- sccomp_df %>% 
+    sccomp_df <- sccomp_df %>%
       dplyr::filter(parameter == param) %>%
       dplyr::mutate(diffexpressed = case_when((v_FDR < fdr) & (v_effect < 0) ~ "dn",
                                               (v_FDR < fdr) & (v_effect > 0) ~ "up",
@@ -268,8 +268,8 @@ sccomp_prep_data <- function(sccomp_df, param, v_c = "c", fdr = 0.05, order = NU
   }
 
   if (!is.null(order)) {
-    sccomp_df$cluster_annot <- factor(sccomp_df$cluster_annot, levels = order)
-    sccomp_df <- sccomp_df[order(sccomp_df$cluster_annot),]
+    sccomp_df[[annot_col]] <- factor(sccomp_df[[annot_col]], levels = order)
+    sccomp_df <- sccomp_df[order(sccomp_df[[annot_col]]),]
   }
   return(sccomp_df)
 }
@@ -282,6 +282,7 @@ sccomp_prep_data <- function(sccomp_df, param, v_c = "c", fdr = 0.05, order = NU
 #' @param sccomp_df A data frame containing sccomp results, prepared using
 #'   `sccomp_prep_data`. Must include columns "c_FDR", "c_effect", "diffexpressed",
 #'   "c_upper", "c_lower", and "cluster_annot".
+#' @param cluster_annot Character, name of annotation column.
 #' @param v_c Either "c" for cell counts or "v" for variance. Determines which
 #'   columns to use for plotting. Default is "c".
 #' @param up The color for upregulated clusters (default: "#FF9999").
@@ -297,18 +298,19 @@ sccomp_prep_data <- function(sccomp_df, param, v_c = "c", fdr = 0.05, order = NU
 #' @importFrom dplyr %>% pull
 #' @export
 sccomp_plot_data <- function(sccomp_df,
+                             annot_col = "cluster_annot",
                              v_c = "c",
                              up = "#FF9999",
                              dn = "#56B4E9",
                              sort_y = TRUE) {
-  
-  stopifnot(all(c("c_FDR", "c_effect", "diffexpressed", "c_upper", "c_lower", "cluster_annot") %in% colnames(sccomp_df)))
-  
+
+  stopifnot(all(c("c_FDR", "c_effect", "diffexpressed", "c_upper", "c_lower") %in% colnames(sccomp_df)))
+
   if(!sort_y) {
     sccomp_df$y <- nrow(sccomp_df):1
   }
   pd <- ggplot2::position_dodge(0.1)
-  
+
   if (v_c == "c") {
     p <- sccomp_df %>%
       ggplot2::ggplot(aes(x = c_effect, y = y, col = diffexpressed, size=c_FDR)) +
@@ -320,7 +322,7 @@ sccomp_plot_data <- function(sccomp_df,
       ) +
       ggplot2::scale_y_continuous(
         breaks = sccomp_df |> dplyr::pull(y),
-        labels = sccomp_df |> dplyr::pull("cluster_annot")) +
+        labels = sccomp_df |> dplyr::pull(annot_col)) +
       ggplot2::scale_size_continuous(trans = ggforce::trans_reverser("log10")) +
       ggplot2::xlab("Credible Interval") +
       ggplot2::theme_classic()  +
@@ -343,7 +345,7 @@ sccomp_plot_data <- function(sccomp_df,
       ) +
       ggplot2::scale_y_continuous(
         breaks = sccomp_df |> dplyr::pull(y),
-        labels = sccomp_df |> dplyr::pull("cluster_annot")) +
+        labels = sccomp_df |> dplyr::pull(annot_col)) +
       ggplot2::scale_size_continuous(trans = ggforce::trans_reverser("log10")) +
       ggplot2::xlab("Credible Interval") +
       ggplot2::theme_classic()  +
@@ -356,7 +358,7 @@ sccomp_plot_data <- function(sccomp_df,
       ) +
       ggplot2::labs(color = "Type", size="Significance")
   }
-  
+
   return (p)
 }
 
@@ -377,7 +379,7 @@ clean_hallmark_names <- function(geneset_names) {
   geneset_names <- str_replace(geneset_names, "Pi3k" , "PI3K") %>%
     str_replace(., "Wnt", "WNT") %>%
     str_replace(., "Uv", "UV") %>%
-    str_replace(., "Tgf beta", "TGF Beta") %>% 
+    str_replace(., "Tgf beta", "TGF Beta") %>%
     str_replace(., "Tnfa", "TNFA") %>%
     str_replace(., "akt", "Akt") %>%
     str_replace(., "Mtorc1", "MTORC1") %>%
@@ -393,51 +395,51 @@ clean_hallmark_names <- function(geneset_names) {
 }
 
 #' Extracts OOB accuracy and Gini-based important features given a dataframe and target column.
-#' @param data: A dataframe with feature columns and one column that is the target 
+#' @param data: A dataframe with feature columns and one column that is the target
 #' @param target_col: A string specifying the name of the target column
 #' @param target_class: A string specifying the name of the target class
 #'
 #' @export
 rf_data <- function(data, target_col, target_class) {
-  
+
   # Separate features and target
   features <- data %>% dplyr::select(-target_col)
   data$target <- ifelse(data[[target_col]] == target_class, 1, 0)
   target <- data$target
-  
+
   # Train Random Forest
   rf <- randomForest(x = features, y = as.factor(target), importance = TRUE)
   accuracy <- 1 - rf$err.rate[nrow(rf$err.rate), "OOB"]
-  
+
   # Get feature importances
   importance <- importance(rf)
-  
+
   # Return sorted importances
   importance_df <- data.frame(
     feature = rownames(importance),
     importance = importance[, "MeanDecreaseGini"]
   ) %>%
     arrange(desc(importance))
-  
+
   return(list(acc = accuracy, imps = importance_df))
 }
 
 #' Calculate Cell Type Diversity Statistic
 #'
-#' This function calculates the cell type diversity statistic for each sample 
-#' from a matrix with samples specified in rows and cell types specified in 
-#' the columns. The matrix can be given as an input or generated from a Seurat object 
-#' or SingleCellExperiment object. If the column sums of the matrix do not equal to 1, 
+#' This function calculates the cell type diversity statistic for each sample
+#' from a matrix with samples specified in rows and cell types specified in
+#' the columns. The matrix can be given as an input or generated from a Seurat object
+#' or SingleCellExperiment object. If the column sums of the matrix do not equal to 1,
 #' the function will return a warning message to fix the matrix.
-#' 
 #'
-#' @param normprop A matrix of the normalized cell type proportions with samples by row and 
+#'
+#' @param normprop A matrix of the normalized cell type proportions with samples by row and
 #' cell types by column, or SingleCellExperiment Object or Seurat Object to pull data from.
 #' @param sample Variable name for sample ID if extracting from SingleCellExperiment or Seurat Object.
 #' @param cell.type Variable name for cell type if extracting variable from SingleCellExperiment or Seurat Object.
-#' @param metadata A matrix of the sample level metadata information including sample by row 
+#' @param metadata A matrix of the sample level metadata information including sample by row
 #' and sample ID variable and other metadata variables by column.
-#' @return A matrix of the cell type diversity statistics for each sample joined with metadata 
+#' @return A matrix of the cell type diversity statistics for each sample joined with metadata
 #' information if provided
 #' @export
 CTDS.score <- function(dataobj,
@@ -457,16 +459,16 @@ CTDS.score <- function(dataobj,
   }else{
     warning("The data object is not a matrix, Seurat object, or a SingleCellExperiment object")
   }
-  
+
   #check if column sums equal to 1
   normprop.sum <- apply(normprop.table, 1, sum)
-  
+
   if(all(normprop.sum) == 1){
     message("The normalized proportions for each sample add up to 1")
   }else{
     warning("The normalized proportions for each sample do not add up to 1")
   }
-  
+
   div.res <- apply(normprop.table, 1, function(x){(-sum(x*log(x), na.rm = T)/log(ncol(normprop.table))-1)})
   if(is.null(metadata) == TRUE){
     div.mat <- tibble::enframe(div.res, name = sample, value = "statistic")
@@ -476,8 +478,8 @@ CTDS.score <- function(dataobj,
       dplyr::full_join(metadata, by = sample)
     return(div.meta)
   }
-  
-  
+
+
 }
 #' Adjust P-values for Multiple Linear Models
 #'
@@ -499,25 +501,25 @@ CTDS.score <- function(dataobj,
 #'
 #' @export
 p_adjust_list <- function(model_list, method = "fdr") {
-  
+
   stopifnot(is.list(model_list))
-  
+
   n_covar <- length(model_list[[1]][["coefficients"]])
   n_models <- length(model_list)
-  
+
   p_matrix <- matrix(data = NA ,ncol = n_models, nrow = n_covar)
   colnames(p_matrix) <- names(model_list)
   rownames(p_matrix) <- names(model_list[[1]][["coefficients"]])
-  
+
   for (i in seq_along(model_list)) {
     model_fit <- model_list[[i]]
     coef_df <- summary(model_fit)$coef
     p_vals <- coef_df[,ncol(coef_df)]
     p_matrix[,i] <- p_vals
   }
-  
+
   p_adj_matrix <- t(apply(p_matrix, 1, p.adjust, method = method, simplify = TRUE))
-  
+
   coef_dfs <- list()
   for (i in seq_along(model_list)) {
     model_fit <- model_list[[i]]
@@ -526,7 +528,7 @@ p_adjust_list <- function(model_list, method = "fdr") {
     coef_df <- cbind(coef_df, "p.adj" = p_adj_matrix[,i])
     coef_dfs[[model_name]] <- coef_df
   }
-  
+
   return(coef_dfs)
 }
 
@@ -560,7 +562,7 @@ p_adjust_list <- function(model_list, method = "fdr") {
 #'   `Pr(>|t|)` = c(0.01, 0.06, 0.03),
 #'   p.adj = c(0.02, 0.08, 0.04)
 #' )
-#' 
+#'
 #' # Filter for positive effects with adjusted p-value < 0.05
 #' filter_fit(coef_df, p_column_name = "p.adj", p_threshold = 0.05, pos_only = TRUE)
 #'
@@ -573,11 +575,11 @@ filter_fit <- function(coef_df,
                        p_threshold = 0.05,
                        pos_only = TRUE,
                        neg_only = FALSE) {
-  
+
   if (coef_df[nrow(coef_df),p_column_name] > p_threshold) {
     return(NULL)
   }
-  
+
   if(pos_only) {
     if (coef_df[nrow(coef_df),1] < 0) {
       return(NULL)
@@ -594,8 +596,9 @@ filter_fit <- function(coef_df,
   }
 }
 
-fishers_meta_p <- function(p1,p2) {
-  P <- c(p1, p2)
-  X <- -2 * sum(log(P))
-  return(pchisq(X, df=4, lower.tail = FALSE))
+fishers_meta_p <- function(pvals) {
+  # pvals: a vector of p-values, e.g. c(0.01, 0.03, 0.25)
+  X <- -2 * sum(log(pvals))
+  df <- 2 * length(pvals)
+  return(pchisq(X, df=df, lower.tail = FALSE))
 }

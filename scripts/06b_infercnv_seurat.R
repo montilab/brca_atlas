@@ -1,9 +1,9 @@
 library(Seurat)
 library(tidyverse)
 PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas/")
-source("util.R")
+source(file.path(PATH, "scripts/util.R"))
 
-wu_natgen_method <- TRUE
+wu_natgen_method <- FALSE
 
 # Loading infercnv data
 wu_natgen_2021 <- readRDS(file.path(PATH, "data/infercnv/wu_natgen_2021/run.final.infercnv_obj"))
@@ -17,10 +17,10 @@ bassez_2021 <- readRDS(file.path(PATH, "data/infercnv/bassez_2021/run.final.infe
 liu_2023 <- readRDS(file.path(PATH, "data/infercnv/liu_2023/run.final.infercnv_obj"))
 wang_2024 <- readRDS(file.path(PATH, "data/infercnv/wang_2024/run.final.infercnv_obj"))
 
-# Loading annotations 
+# Loading annotations
 annotation_paths <- Sys.glob(file.path(PATH, "data/infercnv/*annotations.txt"))
-dataset_names <- sub(".*/(.*?)_annotations\\.txt$", 
-                     "\\1", 
+dataset_names <- sub(".*/(.*?)_annotations\\.txt$",
+                     "\\1",
                      annotation_paths)
 annotation_data <- lapply(annotation_paths, read.delim, header=FALSE, row.names = 1)
 names(annotation_data) <- dataset_names
@@ -42,7 +42,7 @@ wang_2024mat <- wang_2024@expr.data[, unlist(wang_2024@observation_grouped_cell_
 
 if(wu_natgen_method) {
   # Mean of squared, scaled cnv scores
-  
+
   # Scaling each gene to -1,1
   wu_natgen_2021mat_scaled <- t(scale_to_range(t(wu_natgen_2021mat)))
   # wu_embo_2020mat_scaled <- t(scale_to_range(t(wu_embo_2020mat)))
@@ -54,7 +54,7 @@ if(wu_natgen_method) {
   bassez_2021mat_scaled <- t(scale_to_range(t(bassez_2021mat)))
   liu_2023mat_scaled <- t(scale_to_range(t(liu_2023mat)))
   wang_2024mat_scaled <- t(scale_to_range(t(wang_2024mat)))
-  
+
   # Squaring and taking mean
   wu_natgen_2021sum <- colSums(wu_natgen_2021mat_scaled^2) / nrow(wu_natgen_2021mat_scaled)
   # wu_embo_2020sum <- colSums(wu_embo_2020mat_scaled^2) / nrow(wu_embo_2020mat_scaled)
@@ -65,20 +65,20 @@ if(wu_natgen_method) {
   tietscher_2023sum <- colSums(abs(tietscher_2023mat_scaled)) / nrow(tietscher_2023mat_scaled)
   bassez_2021sum <- colSums(bassez_2021mat_scaled^2) / nrow(bassez_2021mat_scaled)
   liu_2023sum <- colSums(liu_2023mat_scaled^2) / nrow(liu_2023mat_scaled)
-  wang_2024sum <- colSums(wang_2024mat_scaled^2) / nrow(wang_2024mat_scaled)  
+  wang_2024sum <- colSums(wang_2024mat_scaled^2) / nrow(wang_2024mat_scaled)
 } else {
-  
-  # Just taking mean of absolute value of scores
-  wu_natgen_2021sum <- colSums(abs(wu_natgen_2021mat)) / nrow(wu_natgen_2021mat)
+
+  # Just taking mean of absolute value of scores centered around 0
+  wu_natgen_2021sum <- colSums(abs(wu_natgen_2021mat - 1)) / nrow(wu_natgen_2021mat)
   # wu_embo_2020sum <- colSums(abs(wu_embo_2020mat)) / nrow(wu_embo_2020mat)
   # wu_genomemed_2021sum <- colSums(abs(wu_genomemed_2021mat)) / nrow(wu_genomemed_2021mat)
-  pal_2021sum <- colSums(abs(pal_2021mat)) / nrow(pal_2021mat)
-  qian_2020sum <- colSums(abs(qian_2020mat)) / nrow(qian_2020mat)
-  gao_2021sum <- colSums(abs(gao_2021mat)) / nrow(gao_2021mat)
-  tietscher_2023sum <- colSums(abs(tietscher_2023mat)) / nrow(tietscher_2023mat)
-  bassez_2021sum <- colSums(abs(bassez_2021mat)) / nrow(bassez_2021mat)
-  liu_2023sum <- colSums(abs(liu_2023mat)) / nrow(liu_2023mat)
-  wang_2024sum <- colSums(abs(wang_2024mat)) / nrow(wang_2024mat)
+  pal_2021sum <- colSums(abs(pal_2021mat - 1)) / nrow(pal_2021mat)
+  qian_2020sum <- colSums(abs(qian_2020mat - 1)) / nrow(qian_2020mat)
+  gao_2021sum <- colSums(abs(gao_2021mat - 1)) / nrow(gao_2021mat)
+  tietscher_2023sum <- colSums(abs(tietscher_2023mat - 1)) / nrow(tietscher_2023mat)
+  bassez_2021sum <- colSums(abs(bassez_2021mat - 1)) / nrow(bassez_2021mat)
+  liu_2023sum <- colSums(abs(liu_2023mat - 1)) / nrow(liu_2023mat)
+  wang_2024sum <- colSums(abs(wang_2024mat - 1)) / nrow(wang_2024mat)
 }
 
 # Plot malignancy scores for each dataset along with controls
@@ -158,7 +158,7 @@ combined_malig_data <- rbind(
 
 combined_malig_data <- readRDS(file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 normal_malig_ranges <- combined_malig_data %>%
-  dplyr::group_by(batch) %>% 
+  dplyr::group_by(batch.x) %>%
   dplyr::filter(str_detect(annotation, "NegControl")) %>%
   dplyr::summarise(
     norm_25 = quantile(score, 0.025),
@@ -166,13 +166,15 @@ normal_malig_ranges <- combined_malig_data %>%
     norm_95 = quantile(score, 0.95),
     norm_975 = quantile(score, 0.975)
   )
-combined_malig_data <- combined_malig_data %>% 
+
+combined_malig_data <- combined_malig_data %>%
+  dplyr::select(cell_id, score, annotation, batch) %>%
   dplyr::left_join(x=., y=normal_malig_ranges, by="batch") %>%
   dplyr::mutate(outside_norm_95 = case_when(score > norm_975 ~ TRUE,
-                                            score < norm_25 ~ TRUE,
+                                            # score < norm_25 ~ TRUE,
                                             .default = FALSE),
                 outside_norm_90 = case_when(score > norm_95 ~ TRUE,
-                                            score < norm_5 ~ TRUE,
+                                            # score < norm_5 ~ TRUE,
                                             .default = FALSE))
 saveRDS(combined_malig_data, file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 
@@ -185,8 +187,8 @@ for(i in seq_along(dataset_names)) {
   y_5 <- unique(batch_data$norm_5)
   p <- batch_data %>%
     dplyr::mutate(cancer = str_detect(annotation, "Epithelial")) %>%
-    ggplot() + 
-    geom_boxplot(aes(x = annotation, y = score, fill = cancer)) + 
+    ggplot() +
+    geom_boxplot(aes(x = annotation, y = score, fill = cancer)) +
     geom_hline(color = "maroon", linetype = "dashed", yintercept = y_95) +
     geom_hline(color = "maroon", linetype = "dashed", yintercept = y_5) +
     scale_fill_manual(values = c("TRUE"="lightsalmon2", "FALSE"="lightgoldenrod")) +
@@ -199,15 +201,15 @@ for(i in seq_along(dataset_names)) {
           axis.title.x = element_text(size = 16),
           axis.title.y = element_text(size = 16))
   infercnv_plots[[i]] <- p
-  ggsave(filename = file.path(PATH, paste0("results/infercnv/", dataset_name, "_scores.png")), width = 7, height = 5)  
+  ggsave(filename = file.path(PATH, paste0("results/infercnv/", dataset_name, "_scores.png")), width = 7, height = 5)
 }
 
 library(cowplot)
 plot_grid(plotlist = infercnv_plots, ncol = 2)
-ggsave(filename = file.path(PATH, "results/infercnv/all_data_scores.png"), width = 11, height = 14)  
+ggsave(filename = file.path(PATH, "results/infercnv/all_data_scores.png"), width = 11, height = 14)
 # Add data to seurat object
 # Plot malignancy scores for each epithelial cluster
-#epi_rpca <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+epi_rpca <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
 rownames(combined_malig_data) <- combined_malig_data$cell_id
 saveRDS(combined_malig_data, file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 
@@ -218,10 +220,10 @@ combined_malig_data$score %>% fivenum(na.rm=TRUE)
 combined_malig_data$group <- with(combined_malig_data, case_when(str_detect(annotation, "Epithelial") ~ `RNA_snn_res.0.2`,
                                                             str_detect(annotation, "Strom") ~ "Stromal",
                                                             str_detect(annotation, "Imm") ~ "Immune"))
-combined_malig_data %>% 
+combined_malig_data %>%
   dplyr::mutate(cancer = str_detect(annotation, "Epithelial")) %>%
-  ggplot() + 
-  geom_boxplot(aes(x = reorder(group, -score, mean), y = score, fill = cancer)) + 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(group, -score, mean), y = score, fill = cancer)) +
   scale_fill_manual(values = c("TRUE"="lightsalmon2", "FALSE"="lightgoldenrod")) +
   labs(title = "Malignancy Scores by Cluster",
        y = "Malignancy Score",
@@ -231,16 +233,16 @@ combined_malig_data %>%
         axis.ticks.x = element_blank(),
         axis.title.x = element_text(size = 16),
         axis.title.y = element_text(size = 16))
-ggsave(filename = file.path(PATH, paste0("results/infercnv/all_clust_squared_scaled_scores.png")), width = 7, height = 8)  
+ggsave(filename = file.path(PATH, paste0("results/infercnv/all_clust_scores.png")), width = 7, height = 8)
 
 # Plot malignancy scores for each subtype
 combined_malig_data$group <- with(combined_malig_data, case_when(str_detect(annotation, "Epithelial") ~ subtype_new,
                                                                  str_detect(annotation, "Strom") ~ "Stromal",
                                                                  str_detect(annotation, "Imm") ~ "Immune"))
-combined_malig_data %>% 
+combined_malig_data %>%
   dplyr::mutate(cancer = str_detect(annotation, "Epithelial")) %>%
-  ggplot() + 
-  geom_boxplot(aes(x = reorder(group, -score, mean), y = score, fill = cancer)) + 
+  ggplot() +
+  geom_boxplot(aes(x = reorder(group, -score, mean), y = score, fill = cancer)) +
   scale_fill_manual(values = c("TRUE"="lightsalmon2", "FALSE"="lightgoldenrod")) +
   labs(title = "Malignancy Scores by Subtype",
        y = "Malignancy Score",
@@ -250,28 +252,28 @@ combined_malig_data %>%
         axis.ticks.x = element_blank(),
         axis.title.x = element_text(size = 16),
         axis.title.y = element_text(size = 16))
-ggsave(filename = file.path(PATH, paste0("results/infercnv/subtype_squared_scaled_scores.png")), width = 7, height = 8)  
+ggsave(filename = file.path(PATH, paste0("results/infercnv/subtype_scores.png")), width = 7, height = 8)
 
 # Saving to epi_rpca
 
 saveRDS(combined_malig_data, file.path(PATH, "data/infercnv/combined_infercnv_data.rds"))
 
 # Pal 2021 experiment (sample random 100 epi cells)
-dataset_name == "pal_2021"
+dataset_name <- "pal_2021"
 sampled_data <- combined_malig_data %>%
     dplyr::filter((batch.x == dataset_name) &
                      str_detect(annotation, "Epithelial")) %>%
-    dplyr::group_by(annotation) %>% 
+    dplyr::group_by(annotation) %>%
     dplyr::slice_sample(n = 100)
 sampled_data$annotation <- str_replace(sampled_data$annotation, "Epithelial", "Sampled")
 combined_malig_data <- rbind(combined_malig_data, sampled_data)
 
-combined_malig_data %>% 
+combined_malig_data %>%
   dplyr::filter(batch.x == dataset_name) %>%
   dplyr::filter(str_detect(annotation, "Epithelial|Sampled")) %>%
   dplyr::mutate(cancer = str_detect(annotation, "Epithelial")) %>%
-  ggplot() + 
-  geom_boxplot(aes(x = annotation, y = score, fill = cancer)) + 
+  ggplot() +
+  geom_boxplot(aes(x = annotation, y = score, fill = cancer)) +
   scale_fill_manual(values = c("TRUE"="lightsalmon2", "FALSE"="lightgoldenrod")) +
   labs(title = dataset_name,
        y = "Malignancy Score",
@@ -281,6 +283,6 @@ combined_malig_data %>%
         axis.ticks.x = element_blank(),
         axis.title.x = element_text(size = 16),
         axis.title.y = element_text(size = 16))
-ggsave(filename = file.path(PATH, paste0("results/infercnv/", dataset_name, "_sampled_squared_scores.png")), width = 7, height = 5) 
+ggsave(filename = file.path(PATH, paste0("results/infercnv/", dataset_name, "_sampled_scores.png")), width = 7, height = 5)
 
 

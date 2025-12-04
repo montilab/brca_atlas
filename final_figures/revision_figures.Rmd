@@ -1,0 +1,583 @@
+---
+title: "Revision figures"
+author: "Andrew Chen"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    theme: 'united'
+    toc: true
+    toc_depth: 1
+    toc_float: true
+    df_print: paged
+    code_folding: hide
+---
+```{r, echo=FALSE, message = FALSE, warning=FALSE}
+library(tidyverse)
+library(scCustomize)
+library(sigrecon)
+devtools::load_all("/restricted/projectnb/brcameta/personal/andrewdr/brcasurv")
+PATH <- file.path(Sys.getenv("MLAB"), "projects/brcameta/brca_atlas")
+DATA_PATH <- file.path(Sys.getenv("CBM"), "otherStudies/scRNAseq/brca")
+do_save <- FALSE
+```
+
+# Reviewer 1
+
+## 1. Subclustering
+The atlas provides subtyping of immune and stromal cells at a low resolution. For instance, there is only a single NK subcluster, only 2 B-cell subclusters, 3 TAM subclusters, etc. Most of the individual studies used to create the atlas provided more refined subclustering than the atlas. The advantage of creating an atlas is that you can characterise heterogeneity at a greater resolution, it is disappointing to see that this is not the case here. This also affects the general use of the atlas. If it is not detailed enough few people will be interested.
+```{r}
+imm_rpca <- readRDS(file.path(PATH, "data/sc/imm_rpca_clean.rds"))
+Idents(imm_rpca) <- imm_rpca$RNA_snn_res.0.6
+```
+
+### NK cells
+```{r}
+# Further cluster NK, B cell, Macrophage, T Cell subclusters
+# For NK clusters, check if there are labels for NK 1-6, and then see where their labels fall within our clusters
+# Assuming I find six clusters by further clustering NK population, compare six signatures with the author's original signatures.
+if(do_save) {
+  imm_rpca <- Seurat::FindSubCluster(imm_rpca, 
+                                   graph.name = "RNA_snn",
+                                   cluster = 3,
+                                   subcluster.name = "NK.sub")
+  imm_rpca$NK.sub %>% table # 6 sub clusters found for NK cells
+  
+  nk_subset <- subset(imm_rpca,
+                      subset=(RNA_snn_res.0.6 == 3))
+  Idents(nk_subset) <- nk_subset$NK.sub
+  nk_markers <- Seurat::FindAllMarkers(nk_subset,
+                                       assay = "RNA",
+                                       test.use = "MAST",
+                                       latent.vars = "batch",
+                                       only.pos = FALSE,
+                                       min.cells.group = 3,
+                                       verbose = TRUE)
+  saveRDS(nk_markers, file.path(PATH,paste0("results/clustering/nk_06_mast_markers.rds")))
+} else {
+  nk_markers <- readRDS(file.path(PATH, paste0("results/clustering/nk_06_mast_markers.rds")))
+}
+nk_xu_markers <- readxl::read_excel(file.path(PATH, "data/signatures/immune/nk1_6_genes.xlsx"))
+nk_xu_markers_list <- nk_xu_markers %>% 
+  dplyr::group_by(`NK subset`) %>% 
+  dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+  dplyr::arrange(desc(log2FC_pval)) %>% 
+  dplyr::group_split()
+names(nk_xu_markers_list) <- nk_xu_markers %>% dplyr::group_by(`NK subset`) %>% dplyr::distinct(`NK subset`) %>% dplyr::pull(`NK subset`)
+nk_xu_markers_list <- lapply(nk_xu_markers_list, function(x) {
+  gene_sig <- x %>% dplyr::pull(gene)
+  up_sig <- gene_sig[1:100]
+  up_sig <- up_sig[!is.na(up_sig)]
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+nk_xu_markers_up <- lapply(nk_xu_markers_list, function(x) x$up)
+nk_markers_list <- nk_markers %>% 
+  dplyr::group_by(cluster) %>% 
+  dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+  dplyr::arrange(desc(log2FC_pval)) %>% 
+  dplyr::group_split()
+names(nk_markers_list) <- nk_markers %>% dplyr::group_by(cluster) %>% dplyr::distinct(cluster) %>% dplyr::pull(cluster)
+nk_markers_list <- lapply(nk_markers_list, function(x) {
+  gene_sig <- x %>% dplyr::pull(gene)
+  up_sig <- gene_sig[1:100]
+  up_sig <- up_sig[!is.na(up_sig)]
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+nk_markers_up <- lapply(nk_markers_list, function(x) x$up)
+# # Compute pairwise KS Distance metric
+# ks_matrix <- outer(lapply(nk_markers_list, function(x) x["up_full"]), lapply(nk_xu_markers_list, function(x) x["up"]), Vectorize(function(x, y) {
+#   ks_result <- sigrecon:::v.ks.test(x, y)
+#   return(ks_result[["D_stats"]])
+# }))
+# rownames(ks_matrix) <- names(nk_markers_list)
+# colnames(ks_matrix) <- names(nk_xu_markers_list)
+# # Plot heatmap
+# ks_matrix <- ks_matrix[c("3_0","3_1","3_2","3_3","3_4","3_5"),
+#                                  c("NK-0", "NK-1","NK-2","NK-3","NK-4","NK-5")]
+# # Plot heatmap
+# pheatmap(ks_matrix, cluster_rows = FALSE, cluster_cols = FALSE)
+
+rnk_genes <- readxl::read_excel(file.path(PATH, "data/signatures/immune/rnk_genes.xlsx"))
+rnk_sig <- list(up = rnk_genes$`Upregulated rNK genes`,
+                dn = rnk_genes$`Downregulated rNK genes`)
+
+# See if rnk score is most correlated with NK
+
+```
+```{r}
+library(pheatmap)
+# Compute pairwise Jaccard
+jaccard_matrix <- outer(nk_markers_up, nk_xu_markers_up, Vectorize(function(x, y) {
+  sigrecon::jaccard(x,y)
+}))
+rownames(jaccard_matrix) <- names(nk_markers_list)
+colnames(jaccard_matrix) <- names(nk_xu_markers_list)
+jaccard_matrix <- jaccard_matrix[c("3_0","3_1","3_2","3_3","3_4","3_5"),
+                                 c("NK-0", "NK-1","NK-2","NK-3","NK-4","NK-5")]
+# Plot heatmap
+pheatmap(jaccard_matrix, cluster_rows = FALSE, cluster_cols = FALSE)
+```
+
+```{r}
+nkcell_hyp <- hypeR::hypeR(nk_markers_up[c("3_0","3_1","3_2","3_3","3_4","3_5")],genesets=nk_xu_markers_up, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(nkcell_hyp,merge=TRUE,top=15)
+```
+
+```{r}
+hypeR::hyp_to_excel(nkcell_hyp, file_path = file.path(PATH, "results/clustering/imm/nk_cell_markers.xlsx"))
+```
+
+
+### B Cells
+```{r}
+if(do_save) {
+  imm_rpca <- Seurat::FindSubCluster(imm_rpca,
+                                   graph.name = "RNA_snn",
+                                   cluster = 4,
+                                   subcluster.name = "B.sub")
+  imm_rpca$B.sub %>% table # 6 sub clusters found for NK cells
+  
+  b_subset <- subset(imm_rpca,
+                      subset=(RNA_snn_res.0.6 == 4))
+  Idents(b_subset) <- b_subset$B.sub
+  b_markers <- Seurat::FindAllMarkers(b_subset,
+                                       assay = "RNA",
+                                       test.use = "MAST",
+                                       latent.vars = "batch",
+                                       only.pos = FALSE,
+                                       min.cells.group = 3,
+                                       verbose = TRUE)
+  saveRDS(b_markers, file.path(PATH,paste0("results/clustering/b_06_mast_markers.rds")))
+} else {
+  b_markers <- readRDS(file.path(PATH,paste0("results/clustering/b_06_mast_markers.rds")))
+  b_markers_list <- b_markers %>% 
+    dplyr::group_by(cluster) %>% 
+    dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+    dplyr::arrange(desc(log2FC_pval)) %>% 
+    dplyr::group_split()
+  names(b_markers_list) <- b_markers %>% dplyr::group_by(cluster) %>% dplyr::distinct(cluster) %>% dplyr::pull(cluster)
+  b_markers_list <- lapply(b_markers_list, function(x) {
+    gene_sig <- x %>% dplyr::pull(gene)
+    up_sig <- gene_sig[1:100]
+    up_sig <- up_sig[!is.na(up_sig)]
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+}
+
+b_markers_up <- lapply(b_markers_list, function (x) x$up)
+
+ma_b_markers <- readxl::read_excel(file.path(PATH, "data/signatures/immune/ma_bcell_plasma_sigs.xlsx"), sheet = 2, skip = 1)
+ma_b_markers_list <- ma_b_markers %>% 
+    dplyr::mutate(p_val_adj = ifelse(p_val_adj == 0, 
+                                     min(p_val_adj[p_val_adj > 0], na.rm = TRUE), 
+                                     p_val_adj)) %>% 
+    dplyr::group_by(cluster_name) %>% 
+    dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+    dplyr::arrange(desc(log2FC_pval)) %>% 
+    dplyr::group_split()
+names(ma_b_markers_list) <- ma_b_markers %>% dplyr::group_by(cluster_name) %>% dplyr::distinct(cluster_name) %>% dplyr::pull(cluster_name)
+ma_b_markers_list <- lapply(ma_b_markers_list, function(x) {
+  gene_sig <- x %>% dplyr::pull(geneSymbol)
+  up_sig <- gene_sig[1:100]
+  up_sig <- up_sig[!is.na(up_sig)] 
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+ma_b_markers_up <- lapply(ma_b_markers_list, function(x) x$up)
+```
+
+```{r}
+bcell_hyp <- hypeR::hypeR(b_markers_up[c("4_0", "4_1", "4_2", "4_3", "4_4")],genesets=ma_b_markers_up, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(bcell_hyp,merge=TRUE,top=15)
+```
+
+```{r}
+hypeR::hyp_to_excel(bcell_hyp, file_path = file.path(PATH, "results/clustering/imm/b_cell_markers.xlsx"))
+```
+
+
+### Plasma Cells
+
+```{r}
+if(do_save) {
+  imm_rpca <- Seurat::FindSubCluster(imm_rpca,
+                                   graph.name = "RNA_snn",
+                                   cluster = 7,
+                                   subcluster.name = "plasma.sub")
+  imm_rpca$plasma.sub %>% table # 6 sub clusters found for NK cells
+  
+  plasma_subset <- subset(imm_rpca,
+                      subset=(RNA_snn_res.0.6 == 7))
+  Idents(plasma_subset) <- plasma_subset$plasma.sub
+  plasma_markers <- Seurat::FindAllMarkers(plasma_subset,
+                                       assay = "RNA",
+                                       test.use = "MAST",
+                                       latent.vars = "batch",
+                                       only.pos = TRUE,
+                                       min.cells.group = 3,
+                                       verbose = TRUE)
+  saveRDS(plasma_markers, file.path(PATH,paste0("results/clustering/plasma_06_mast_markers.rds")))
+} else {
+  plasma_markers <- readRDS(file.path(PATH,paste0("results/clustering/plasma_06_mast_markers.rds")))
+  plasma_markers_list <- plasma_markers %>% 
+    dplyr::group_by(cluster) %>% 
+    dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+    dplyr::arrange(desc(log2FC_pval)) %>% 
+    dplyr::group_split()
+  names(plasma_markers_list) <- plasma_markers %>% dplyr::group_by(cluster) %>% dplyr::distinct(cluster) %>% dplyr::pull(cluster)
+  plasma_markers_list <- lapply(plasma_markers_list, function(x) {
+    gene_sig <- x %>% dplyr::pull(gene)
+    up_sig <- gene_sig[1:100]
+    up_sig <- up_sig[!is.na(up_sig)]
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+}
+
+ma_plasma_markers <- readxl::read_excel(file.path(PATH, "data/signatures/immune/ma_bcell_plasma_sigs.xlsx"), sheet = 3, skip = 1)
+ma_plasma_markers_list <- ma_plasma_markers %>% 
+    dplyr::mutate(p_val_adj = ifelse(p_val_adj == 0, 
+                                     min(p_val_adj[p_val_adj > 0], na.rm = TRUE), 
+                                     p_val_adj)) %>% 
+    dplyr::group_by(cluster_name) %>% 
+    dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+    dplyr::arrange(desc(log2FC_pval)) %>% 
+    dplyr::group_split()
+names(ma_plasma_markers_list) <- ma_plasma_markers %>% dplyr::group_by(cluster_name) %>% dplyr::distinct(cluster_name) %>% dplyr::pull(cluster_name)
+ma_plasma_markers_list <- lapply(ma_plasma_markers_list, function(x) {
+  gene_sig <- x %>% dplyr::pull(geneSymbol)
+  up_sig <- gene_sig[1:100]
+  up_sig <- up_sig[!is.na(up_sig)] 
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+ma_plasma_markers_up <- lapply(ma_plasma_markers_list, function(x) x$up)
+plasma_markers_up <- lapply(plasma_markers_list, function (x) x$up)
+```
+
+```{r}
+plasmacell_hyp <- hypeR::hypeR(plasma_markers_up[paste0("7_", 0:9)],genesets=ma_plasma_markers_up, test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(plasmacell_hyp,merge=TRUE,top=15)
+```
+
+### Macrophages
+
+```{r}
+if(do_save) {
+  imm_rpca@meta.data$mac_clusters <- with(imm_rpca@meta.data,
+                                          if_else(`RNA_snn_res.0.6` %in% c(0,8,16),
+                                                  "mac",
+                                                  `RNA_snn_res.0.6`))
+  Idents(imm_rpca) <- imm_rpca@meta.data$mac_clusters 
+  imm_rpca <- Seurat::FindSubCluster(imm_rpca,
+                                     graph.name = "RNA_snn",
+                                     cluster = "mac",
+                                     subcluster.name = "mac.sub")
+  imm_rpca$mac.sub %>% table # 12 sub clusters found for Macrophages
+  
+  mac_subset <- subset(imm_rpca,
+                      subset=(mac_clusters == "mac"))
+  Idents(mac_subset) <- mac_subset$mac.sub
+  mac_markers <- Seurat::FindAllMarkers(mac_subset,
+                                       assay = "RNA",
+                                       test.use = "MAST",
+                                       latent.vars = "batch",
+                                       only.pos = FALSE,
+                                       min.cells.group = 3,
+                                       verbose = TRUE)
+  saveRDS(mac_markers, file.path(PATH,paste0("results/clustering/mac_06_05_mast_markers.rds")))
+} else {
+  mac_markers <- readRDS(file.path(PATH,paste0("results/clustering/mac_06_05_mast_markers.rds")))
+  mac_markers_list <- mac_markers %>% 
+    dplyr::group_by(cluster) %>% 
+    dplyr::mutate(log2FC_pval = avg_log2FC*(-log10(p_val_adj))) %>%
+    dplyr::arrange(desc(log2FC_pval)) %>% 
+    dplyr::group_split()
+  names(mac_markers_list) <- mac_markers %>% dplyr::group_by(cluster) %>% dplyr::distinct(cluster) %>% dplyr::pull(cluster)
+  mac_markers_list <- lapply(mac_markers_list, function(x) {
+    gene_sig <- x %>% dplyr::pull(gene)
+    up_sig <- gene_sig[1:100]
+    up_sig <- up_sig[!is.na(up_sig)]
+  return(list(up = up_sig, up_full = gene_sig)) 
+})
+}
+mac_markers_up <- lapply(mac_markers_list, function(x) x$up)
+
+immune_celltypes <- readRDS(file.path(PATH, "brca_atlas_validation/data/sigs/imm_markers.rds"))
+boroni_sigs <- readRDS(file.path(PATH, "data/signatures/immune/boroni_2024/pan_cancer_myeloid_sigs_full.rds"))
+vanderleun_sigs <- readRDS(file.path(PATH, "data/signatures/immune/vanderleun_sigs.rds"))
+chu_sigs <- readRDS(file.path(PATH, "data/signatures/immune/chu_2023/chu_sigs.rds"))
+all_imm_sigs <- c(immune_celltypes, boroni_sigs, vanderleun_sigs, chu_sigs)
+all_imm_sigs <- all_imm_sigs[!duplicated(names(all_imm_sigs))]
+immune_celltypes_macro <- immune_celltypes[str_detect(names(immune_celltypes), "Mono|Macro|Myeloid")]
+```
+
+```{r}
+mac_hyp <- hypeR::hypeR(mac_markers_up[paste0("mac_", 0:11)], genesets=c(immune_celltypes_macro, boroni_sigs), test="hypergeometric", fdr=0.05)
+hypeR::hyp_dots(mac_hyp,merge=TRUE,top=10)
+```
+
+```{r}
+hypeR::hyp_to_excel(mac_hyp, file_path = file.path(PATH, "results/clustering/imm/mac_markers.xlsx"))
+```
+
+
+
+```{r}
+imm_rpca$combined.sub <- with(imm_rpca@meta.data,
+                              case_when(`RNA_snn_res.0.6` == 3 ~ `NK.sub`,
+                                        `RNA_snn_res.0.6` == 4 ~ `B.sub`,
+                                        `RNA_snn_res.0.6` %in% c(0,8,16) ~ `mac.sub`,
+                                        .default = `RNA_snn_res.0.6`))
+imm_rpca$cluster_annot_sub <- with(imm_rpca@meta.data,
+                                   case_when(combined.sub == "3_0" ~ "NK_rNK",
+                                             combined.sub == "3_3" ~ "NK_Cyto.",
+                                             combined.sub == "4_0" ~ "B_ACB",
+                                             combined.sub == "4_1" ~ "B_Naive",
+                                             combined.sub == "4_2" ~ "B_IFIT",
+                                             combined.sub == "4_4" ~ "B_GCB",
+                                             combined.sub == "mac_0" ~ "Mac_RTM_LA",
+                                             combined.sub == "mac_1" ~ "Mac_RTM_IFN",
+                                             combined.sub == "mac_2" ~ "Mac_LA",
+                                             combined.sub == "mac_3" ~ "Mac/Mono",
+                                             combined.sub == "mac_4" ~ "Mac_RTM_MT",
+                                             combined.sub == "mac_5" ~ "Mac_IFN",
+                                             combined.sub == "mac_6" ~ "Mac/Mono",
+                                             combined.sub == "mac_7" ~ "Mac_Anti.",
+                                             combined.sub == "mac_8" ~ "Mac/Mono",
+                                             combined.sub == "mac_9" ~ "Mac_ES",
+                                             combined.sub == "mac_10" ~ "Mac_ES",
+                                             combined.sub == "mac_11" ~ "Mac/Mono",
+                                             .default = cluster_annot))
+saveRDS(imm_rpca, file.path(PATH, "data/sc/imm_rpca_sub_clean.rds"))
+```
+
+
+## 3.
+The authors do an effort to subcluster the cancer cells. But it remains confusing how many clusters they identify. Is it possible to characterise these subclusters a bit better. For instance, what is there abundance in comparison to their histology. What is their per sample heterogeneity, etc.
+```{r}
+epi_subset <- readRDS(file.path(PATH, "data/sc/epi_rpca_subset.rds"))
+```
+
+Stacked bar chart showing per sample heterogeneity of clusters:
+```{r}
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 23, palette = "varibow")
+p1 <- epi_subset@meta.data %>% 
+  dplyr::count(donor,RNA_snn_res.0.1) %>% 
+  dplyr::group_by(donor) %>%
+  dplyr::filter(n > 5) %>%
+  dplyr::mutate(proportion = n/sum(n)) %>%
+  ggplot(aes(x = donor, y = proportion, fill = RNA_snn_res.0.1)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = varibow_pal) +
+  theme(text = element_text(size = 12),
+        axis.text.x = element_blank()) + 
+  labs(x = "Donor", y = "Proportion", fill = "Clusters", title = "Epithelial Heterogeneity in Donors")
+ggsave(plot = p1, filename = file.path(PATH, "results/final_figures/donors_clusters.png"), width = 9, height = 4)
+```
+
+```{r}
+varibow_pal <- DiscretePalette_scCustomize(num_colors = 23, palette = "varibow")
+p1 <- epi_subset@meta.data %>% 
+  dplyr::count(subtype_new,RNA_snn_res.0.1) %>% 
+  dplyr::group_by(subtype_new) %>%
+  dplyr::filter(n > 5) %>%
+  dplyr::mutate(proportion = n/sum(n)) %>%
+  ggplot(aes(x = subtype_new, y = proportion, fill = RNA_snn_res.0.1)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values = varibow_pal) +
+  theme_minimal() + 
+  theme(text = element_text(size = 12),
+        axis.text.x = element_text(angle = 60, vjust = 1, hjust = 1)) + 
+  labs(x = "Subtype", y = "Proportion", fill = "Clusters", title = "Epithelial Heterogeneity in Subtypes")
+ggsave(plot = p1, filename = file.path(PATH, "results/final_figures/subtype_clusters.png"), width = 6, height = 4)
+```
+
+## 4 
+There is not a real conclusion in the paper. The associations with age, grade, hormone status seem quite random and are non-conclusive. What happens if you deconvolute and perform these same association in METABRIC and TCGA ?
+```{r}
+tcga_epi_gsva <- readRDS(file.path(PATH, "results/gsva/tcga_epi_gsva.rds"))
+metabric_epi_gsva <- readRDS(file.path(PATH, "results/gsva/metabric_epi_gsva.rds"))
+scanb_epi_gsva <- readRDS(file.path(PATH, "results/gsva/scanb_epi_gsva.rds"))
+
+tcga_imm_gsva <- readRDS(file.path(PATH, "results/gsva/tcga_imm_gsva.rds"))
+metabric_imm_gsva <- readRDS(file.path(PATH, "results/gsva/metabric_imm_gsva.rds"))
+scanb_imm_gsva <- readRDS(file.path(PATH, "results/gsva/scanb_imm_gsva.rds"))
+```
+
+```{r}
+# Only METABRIC has grade data
+metabric_imm_gsva$CD8_tex_score <- metabric_imm_gsva@assayData$exprs["Y_2_up",]
+metabric_imm_gsva$CD4_tfh_score <- metabric_imm_gsva@assayData$exprs["X_1_up",]
+metabric_imm_gsva$Mac_ifn_score <- metabric_imm_gsva@assayData$exprs["L_1_up",]
+metabric_imm_gsva$Mac_es_score <- metabric_imm_gsva@assayData$exprs["J_2_up",]
+metabric_imm_gsva$Mast_score <- metabric_imm_gsva@assayData$exprs["E_2_up",]
+metabric_imm_metadata <- metabric_imm_gsva@phenoData@data
+```
+
+```{r}
+metabric_cd8ex_lm <- lm(
+  CD8_tex_score ~ GRADE + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS,
+  data = metabric_imm_metadata
+)
+metabric_cd4tfh_lm <- lm(
+  CD4_tfh_score ~ GRADE + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS,
+  data = metabric_imm_metadata
+)
+metabric_macifn_lm <- lm(
+  Mac_ifn_score ~ GRADE + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS,
+  data = metabric_imm_metadata
+)
+metabric_maces_lm <- lm(
+  Mac_es_score ~ GRADE + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS,
+  data = metabric_imm_metadata
+)
+metabric_mast_lm <- lm(
+  Mast_score ~ GRADE + Pam50_SUBTYPE + AGE_AT_DIAGNOSIS,
+  data = metabric_imm_metadata
+)
+```
+
+```{r}
+summary(metabric_cd8ex_lm)
+```
+
+```{r}
+summary(metabric_cd4tfh_lm)
+```
+
+```{r}
+summary(metabric_macifn_lm)
+```
+
+```{r}
+summary(metabric_maces_lm)
+```
+
+```{r}
+summary(metabric_mast_lm)
+```
+
+
+# Reviewer 2
+
+## 2. 
+The PAM50 methodology has been calculated using the genefu R package which is an outdated methodology in light of the authors using Her2+ breast cancer samples in their analysis. A better method would be to use the new methodology described by Fernandez-Martinez et al (PMID: 33095682). The authors should provide the PAM50 scores, heatmaps and training/testing scatterplots to showcase the PAM50 methodology worked correctly. Furthermore, In the Wu et al study (PMID: 34493872), the authors define a novel methodology of calculating PAM50 subtypes in scRNAseq data. The authors should also think of using that methodology instead of PAM50 subtypes in pseudo-bulk data.
+```{r}
+library(sspbc)
+
+# Load pseudobulk
+brca_pb <- readRDS(file.path(PATH, "data/pseudobulk/combined_data_pb.rds"))
+gex_matrix <- brca_pb@assays$RNA$counts %>% as.matrix
+?sspbc::applySSP
+
+all_genes_ssp_pam50 <- applySSP(gex=gex_matrix, id=rownames(gex_matrix), ssp.name="ssp.pam50")
+all_genes_ssp_pam50 %>% table
+```
+
+```{r}
+# Using Pal & Wang mapping tables
+pal_feats <- read.delim(file.path(DATA_PATH, "pal_2021/GSE161529_features.tsv"), header = FALSE)[,1:2]
+colnames(pal_feats) <- c("ensembl", "hgnc")
+wang_feats <- read.delim(file.path(DATA_PATH, "wang_2024/TNBC/GSM8064219_BC17086-12_Tumor_features.tsv.gz"), header = FALSE)[,1:2]
+colnames(wang_feats) <- c("ensembl", "hgnc")
+wang_feats$ensembl <- str_remove_all(wang_feats$ensembl, pattern = "\\.\\d+$")
+
+merged_ensembl_hgnc <- dplyr::full_join(pal_feats, wang_feats, by = "ensembl")
+
+hgnc_ensembl <- data.frame(hgnc = rownames(gex_matrix))
+hgnc_ensembl$ensembl <- with(hgnc_ensembl, case_when(hgnc %in% merged_ensembl_hgnc$hgnc.x ~ merged_ensembl_hgnc$ensembl[match(hgnc, merged_ensembl_hgnc$hgnc.x)],
+                                                     hgnc %in% merged_ensembl_hgnc$hgnc.y ~ merged_ensembl_hgnc$ensembl[match(hgnc, merged_ensembl_hgnc$hgnc.y)],
+                                                     .default = NA))
+hgnc_ensembl_filtered <- hgnc_ensembl[!is.na(hgnc_ensembl$ensembl),]
+hgnc_ensembl_filtered <- hgnc_ensembl_filtered[!duplicated(hgnc_ensembl_filtered$ensembl),]
+rownames_filter <- rownames(gex_matrix) %in% hgnc_ensembl_filtered$hgnc
+
+gex_matrix_ensembl_subset <- gex_matrix[rownames_filter,]
+ensembl_ssp_pam50 <- applySSP(gex=gex_matrix_ensembl_subset, id=rownames(gex_matrix_ensembl_subset), ssp.name="ssp.pam50")
+ensembl_ssp_pam50 %>% table
+```
+
+```{r}
+ensembl_ssp_sutype <- applySSP(gex=gex_matrix_ensembl_subset, id=rownames(gex_matrix_ensembl_subset), ssp.name="ssp.subtype") %>% table
+ensembl_ssp_sutype
+```
+
+SSP predicts everything to be Luminal A regardless of method choice.
+
+```{r}
+library(genefu)
+data(pam50)
+data(pam50.robust)
+pam50_genes <- pam50$centroids.map$probe
+pam50_seurat <- brca_pb[pam50_genes,]
+pam50_mat <- brca_pb@assays$RNA$data
+annot <- pam50$centroids.map
+annot <- annot %>% dplyr::rename(Gene.Symbol = probe) %>% dplyr::select(Gene.Symbol, EntrezGene.ID)
+
+pam50_subtypes <- molecular.subtyping(
+  sbt.model = "pam50",
+  data = t(pam50_mat),  # Transpose the matrix
+  annot = annot,
+  do.mapping = FALSE
+)
+
+pam50_df <- data.frame(donor = names(pam50_subtypes$subtype), pam50 = unname(pam50_subtypes$subtype))
+```
+
+```{r}
+pam50_genes
+```
+
+```{r}
+pam50_scores <- pam50_subtypes$subtype.proba %>% as.data.frame %>% rownames_to_column(var = "donor_id")
+write_excel_csv(pam50_scores, file.path(PATH, "data/revision/pam50_scores.csv"))
+```
+
+
+```{r}
+# Comparing with author's annotations
+all_metadata <- read.csv(file.path(PATH, "data/metadata/all_metadata.csv"))
+all_metadata <- all_metadata %>% column_to_rownames("X")
+all_metadata$donor <- str_replace_all(all_metadata$donor, "-", "_") 
+all_metadata <- all_metadata %>% dplyr::left_join(., y = pam50_df, by = "donor")
+write.csv(all_metadata, file.path(PATH, "data/metadata/all_metadata.csv"), row.names = TRUE)
+pam50_comparison <- pam50_df %>% dplyr::inner_join(., y = all_metadata, by = "donor", multiple = "first")
+
+cont_mat <- pam50_comparison %>% 
+  dplyr::select(subtype_new, pam50.x) %>% 
+  table %>%
+  as.matrix
+
+col_fun <- colorRamp2(c(min(cont_mat), mean(cont_mat), max(cont_mat)), 
+                      c("blue", "white", "red"))
+# Create heatmap
+heatmap <- Heatmap(cont_mat,
+                   name = "Count",
+                   row_title = "Author Subtype",
+                   column_title = "PAM50 Subtype",
+                   col = col_fun,
+                   row_order = c("TNBC", "ER+", "HER2+", "Unassigned"),
+                   cluster_columns = TRUE,
+                   show_row_names = TRUE,
+                   show_row_dend = FALSE,
+                   show_column_names = TRUE,
+                   row_names_side = "left",
+                   column_names_side = "top",
+                   cell_fun = function(j, i, x, y, width, height, fill) {
+                     grid.text(sprintf("%.0f", cont_mat[i, j]), x, y, gp = gpar(fontsize = 10))
+                   })
+
+# Draw the heatmap
+png(file.path(PATH, "results/annotation/pam50.png"), width=1000, height=1000, res = 200)
+draw(heatmap)
+dev.off()
+```
+
+## 4.	The TCGA data may not be the best data for conducting patient survival analysis. Instead SCANB (PMID: 35974007) may be a better study to utilize for survival analysis.
+```{r}
+library(brcasurv)
+```
+
+```{r}
+
+```
+
