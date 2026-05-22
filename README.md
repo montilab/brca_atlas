@@ -13,3 +13,10 @@ To setup the conda environments for the python analysis done in this project run
 scripts/conda_install.sh
 scripts/r-sceasy.sh
 ```
+
+## How to Cite
+
+If you use any data or scripts from this repository in your research, please cite:
+- Chen, Andrew, Lina Kroehling, Christina S. Ennis, Gerald V. Denis, and Stefano Monti. _A Highly Resolved Integrated Single-Cell Atlas of Human Breast Cancers._ NAR Genomics and Bioinformatics 8, no. 1 (2026): lqaf217. [DOI: 10.1093/nargab/lqaf217](https://doi.org/10.1093/nargab/lqaf217).
+
+
